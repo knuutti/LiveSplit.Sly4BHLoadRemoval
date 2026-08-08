@@ -7,7 +7,7 @@ reusing lot of the background code and the UI.
 
 # How to use
 
-1. Download the component DLL and drop it into the `Components` folder of your LiveSplit install.
+1. [Download](https://github.com/knuutti/LiveSplit.Sly4BHLoadRemoval/releases/latest) the component DLL and drop it into the `Components` folder of your LiveSplit install.
 2. Open LiveSplit -> Edit Layout -> Click the plus icon -> Control -> Sly 4 / Hackpack Load Remover.
 3. Pick a capture source with the **Display / Video Capture** buttons at the top.
     - **Display** lists your screens and open windows
