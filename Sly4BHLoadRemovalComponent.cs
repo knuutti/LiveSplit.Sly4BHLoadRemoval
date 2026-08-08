@@ -34,6 +34,21 @@ namespace LiveSplit.UI.Components
         private bool rawMatchPrev = false;
         private int consecutiveMatchFrames = 0;
 
+        // Per-load state for the autosplitter, reset at every load boundary and on timer reset.
+        //
+        // The game has two loading screens and only one of them is worth splitting on: an *area* load
+        // shows the statistics along the bottom and happens at a consistent point in a run, a *plain*
+        // load shows the mask alone and does not. Both still pause the timer - this only decides which
+        // ones advance NumberOfLoadsPerSplit.
+        //
+        // Sticky rather than a single look at the moment the load starts. Measured on the fixtures the
+        // statistics are already fully up before detection confirms the load (sequence\f00956), so a
+        // rising-edge test would work today - but a load whose statistics appeared a few frames late
+        // would silently stop counting, and two bools are cheaper than that failure mode.
+        // countedThisLoad is what stops it counting the same load repeatedly.
+        private bool sawStatsThisLoad = false;
+        private bool countedThisLoad = false;
+
         private string lastDetectionDebug = "";
         private int debugLogFrameCounter = 0;
 
@@ -125,7 +140,7 @@ namespace LiveSplit.UI.Components
         // The per-frame loading-screen test. The decision itself lives in LoadDetector so that the
         // offline test runner drives exactly this code rather than a copy of it; all that happens here
         // is fetching the calibration and reporting what came back.
-        private bool DetectMask(Bitmap capture)
+        private DetectionResult DetectMask(Bitmap capture)
         {
             FramePixels frame = new FramePixels(capture);
 
@@ -136,7 +151,7 @@ namespace LiveSplit.UI.Components
             DetectionResult result = LoadDetector.Detect(frame, settings.GetCalibration());
 
             ReportDebug(result.Describe());
-            return result.IsLoading;
+            return result;
         }
 
         // Mirrors the per-frame detection state to the settings panel (visible while the layout settings
@@ -160,18 +175,18 @@ namespace LiveSplit.UI.Components
                 framesSinceLastManualSplit++;
                 MeasureUpdateRate();
 
-                bool rawMatch;
+                DetectionResult result;
                 Bitmap capture = settings.CaptureImage();
                 try
                 {
-                    rawMatch = DetectMask(capture);
+                    result = DetectMask(capture);
                 }
                 finally
                 {
                     capture.Dispose();
                 }
 
-                UpdateDebouncedState(rawMatch);
+                UpdateDebouncedState(result);
 
                 // Periodic trace so the detection log shows what was happening even across frames where
                 // nothing changed - without this a run that never detects anything logs nothing at all.
@@ -179,7 +194,8 @@ namespace LiveSplit.UI.Components
                 if (debugLogFrameCounter >= DebugLogEveryNFrames)
                 {
                     debugLogFrameCounter = 0;
-                    Console.WriteLine("[trace] rawMatch=" + rawMatch + " isLoading=" + isLoading + "\r\n" + lastDetectionDebug);
+                    Console.WriteLine("[trace] rawMatch=" + result.IsLoading + " isLoading=" + isLoading +
+                                      " sawStats=" + sawStatsThisLoad + "\r\n" + lastDetectionDebug);
                 }
             }
             catch (Exception ex)
@@ -228,8 +244,10 @@ namespace LiveSplit.UI.Components
         // Only flips the loading state once `rawMatch` has agreed for AutoSplitterJitterToleranceFrames
         // consecutive frames, to reject single-frame noise - the same idea as the 3-frame debounce in
         // the Python proof of concept, generalized to a configurable frame count.
-        private void UpdateDebouncedState(bool rawMatch)
+        private void UpdateDebouncedState(DetectionResult result)
         {
+            bool rawMatch = result.IsLoading;
+
             if (rawMatch == rawMatchPrev)
             {
                 consecutiveMatchFrames++;
@@ -240,18 +258,43 @@ namespace LiveSplit.UI.Components
                 rawMatchPrev = rawMatch;
             }
 
-            if (rawMatch == isLoading || consecutiveMatchFrames < settings.AutoSplitterJitterToleranceFrames)
+            if (rawMatch != isLoading && consecutiveMatchFrames >= settings.AutoSplitterJitterToleranceFrames)
+            {
+                isLoading = rawMatch;
+                timer.CurrentState.IsGameTimePaused = isLoading;
+
+                // A new load starts with no idea which kind it is yet, and nothing counted for it.
+                sawStatsThisLoad = false;
+                countedThisLoad = false;
+
+                Console.WriteLine("[state] isLoading -> " + isLoading + " (IsGameTimePaused set)\r\n" +
+                                  lastDetectionDebug);
+            }
+
+            if (!isLoading)
             {
                 return;
             }
 
-            isLoading = rawMatch;
-            timer.CurrentState.IsGameTimePaused = isLoading;
-            Console.WriteLine("[state] isLoading -> " + isLoading + " (IsGameTimePaused set)\r\n" + lastDetectionDebug);
+            // Note this reads the *current* frame, not only the one that flipped the state, so an area
+            // load whose statistics appear a few frames in is still recognised.
+            if (result.HasStats && !sawStatsThisLoad)
+            {
+                sawStatsThisLoad = true;
+                Console.WriteLine("[state] this load is an AREA load - " + result.LoadTypeInfo);
+            }
 
-            if (isLoading && settings.AutoSplitterEnabled && !(settings.AutoSplitterDisableOnSkipUntilSplit && LastSplitSkip)
+            // Only area loads advance the split's load count. Plain loads have already had their time
+            // removed above; they just are not a landmark worth splitting on.
+            if (!sawStatsThisLoad || countedThisLoad)
+            {
+                return;
+            }
+
+            if (settings.AutoSplitterEnabled && !(settings.AutoSplitterDisableOnSkipUntilSplit && LastSplitSkip)
                 && framesSinceLastManualSplit >= settings.AutoSplitterManualSplitDelayFrames)
             {
+                countedThisLoad = true;
                 NumberOfLoadsPerSplit[liveSplitState.CurrentSplitIndex]++;
 
                 if (CumulativeNumberOfLoadsForSplitIndex(liveSplitState.CurrentSplitIndex) >= settings.GetCumulativeNumberOfLoadsForSplit(liveSplitState.CurrentSplit.Name))
@@ -299,6 +342,8 @@ namespace LiveSplit.UI.Components
             isLoading = false;
             rawMatchPrev = false;
             consecutiveMatchFrames = 0;
+            sawStatsThisLoad = false;
+            countedThisLoad = false;
 
             InitNumberOfLoadsFromState();
 

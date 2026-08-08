@@ -172,6 +172,9 @@ appears totally inert is usually missing a calibration, not broken.
     a loading screen.
   - **Mask region** (`MaskDetector.MaskRegion`) - columns `[110, 190)`, rows `[100, 180)`, i.e.
     **80x80**. Where the mask is looked for; generous enough to absorb an imperfect crop.
+  - **Statistics region** (`MaskDetector.StatsRegion`) - columns `[60, 250)`, rows `[190, 270)`. The
+    row of collectible icons an *area* load draws along the bottom. Ten rows clear of the mask region.
+    Used only to tell the two loading screens apart - see below.
 
   The user is assumed not to include anything *outside* the game frame in their crop, but may well cut
   off some of its edges. That asymmetry is why both regions sit comfortably inside the frame. The two
@@ -246,6 +249,35 @@ appears totally inert is usually missing a calibration, not broken.
   foreground alone, reported but not acted on - it says what the mask is coloured independently of how
   much of its box it fills, which is what to reach for if the fill/colour coupling ever becomes a
   problem.
+
+  **Two kinds of loading screen, and only one of them is a split.** An *area* load shows a tip line at
+  the top and a row of four collectible icons along the bottom; a *plain* load shows the mask alone on
+  black. Area loads happen at consistent points in a run, plain ones do not, so the autosplitter counts
+  area loads only.
+
+  **This is not a detection gate.** Both are loads, both set `IsGameTimePaused`, and `IsLoading` is
+  true for both - `MaskDetector.MeasureStatsFill` only populates `DetectionResult.HasStats`, which
+  nothing in `LoadDetector` acts on. The distinction is consumed in
+  `Sly4BHLoadRemovalComponent.UpdateDebouncedState`. Breaking this would silently stop removing load
+  time from half the loads, which is why `GateScenarios` asserts that a plain load is still accepted.
+
+  Like the colour check, it is a category rather than a tuned threshold: measured over all 89 loading
+  frames a plain load fills **exactly 0.000** of the region and an area load **0.386-0.412**.
+  `MinStatsFill` is 0.05, so an area load could lose 87% of its icon row and still register while a
+  plain load would need ~760 stray lit pixels to trip it. No median blur - it is a fill fraction over
+  ~15k pixels, so speckle cannot move it.
+
+  **The autosplitter counts the first frame of a load where the statistics have been seen**, not the
+  rising edge, tracked by `sawStatsThisLoad` / `countedThisLoad` (reset at each load boundary and in
+  `timer_OnReset`). Measured, the statistics are already fully up *before* detection confirms the load
+  (`sequence\f00956` has them while the mask is still mid-transition), so a rising-edge test would work
+  today and the split fires at the same moment either way. The sticky form costs two bools and means a
+  load whose statistics appear late still counts.
+
+  Labelled in the fixtures by `testdata\<set>\arealoads.txt` (`all`, a frame number, or `from-to`;
+  anything unlisted is a plain load, and a set without the file is not checked). `DetectionTests`
+  reports this as its own `load types` line, separate from loading/notloading, because getting it
+  wrong costs a split rather than a pause.
 
   **Two blind spots**, both asserted in `tests\GateScenarios.cs` so they stay visible:
 

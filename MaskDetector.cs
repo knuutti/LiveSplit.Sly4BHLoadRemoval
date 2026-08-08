@@ -109,6 +109,56 @@ namespace Sly4BHLoadDetector
         // rows [100, 180). Generous enough to cover the mask wherever it lands given an imperfect crop.
         public static readonly Rectangle MaskRegion = Rectangle.FromLTRB(110, 100, 190, 180);
 
+        // Where the area-load statistics sit: the row of four collectible icons with their counts,
+        // across the bottom of the loading screen. Columns [60, 250), rows [190, 270).
+        //
+        // The game has two loading screens. An *area* load shows a tip line at the top and this icon
+        // row at the bottom; a *plain* load shows the mask alone on black. Both are loads and both
+        // pause the timer - this region exists only so the autosplitter can count the area ones, which
+        // happen at consistent points in a run.
+        //
+        // Sits a clear 10 rows below MaskRegion, and nowhere near FeatureDetector.BlackRegion. The
+        // icons are chosen over the tip text because they are far larger and brighter, so the
+        // measurement is a fill fraction rather than anything resembling text detection.
+        public static readonly Rectangle StatsRegion = Rectangle.FromLTRB(60, 190, 250, 270);
+
+        // Share of StatsRegion that must be lit for a load to count as an area load. Set from the
+        // measured separation between the two kinds of loading frame - see MeasureStatsFill.
+        public static float MinStatsFill = 0.05f;
+
+        // Share of StatsRegion brighter than the frame's own binarization threshold.
+        //
+        // Deliberately no median blur, unlike the mask: this is a fill fraction over ~15k pixels, not
+        // a bounding box, so isolated speckle moves it by nothing and the blur would only cost time.
+        public static float MeasureStatsFill(FramePixels frame, int blacknessLevel)
+        {
+            Rectangle r = frame.Clamp(StatsRegion);
+            long area = (long)r.Width * r.Height;
+            if (area <= 0)
+            {
+                return 0f;
+            }
+
+            int lit = 0;
+            for (int y = r.Top; y < r.Bottom; y++)
+            {
+                for (int x = r.Left; x < r.Right; x++)
+                {
+                    if (frame.GrayAt(x, y) > blacknessLevel)
+                    {
+                        lit++;
+                    }
+                }
+            }
+
+            return (float)lit / area;
+        }
+
+        public static bool HasStats(float statsFill)
+        {
+            return statsFill >= MinStatsFill;
+        }
+
         // The binarization threshold, from this frame's own black patch reading.
         //
         // Two things are going on in (level + 1) * 2. The +1 makes the threshold strictly clear of the

@@ -1,0 +1,5 @@
+# See testdata\recording\arealoads.txt for the format.
+#
+# Every loading frame in this set is an area load. Note the frames here are named by timestamp rather
+# than frame number, so a numeric range could not address them - which is what `all` is for.
+all

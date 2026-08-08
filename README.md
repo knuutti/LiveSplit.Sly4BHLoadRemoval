@@ -78,6 +78,22 @@ one, which draws a mask at the same place and the same size but lights its eyes 
 Median saturation and brightness are measured and written to the detection log, but nothing is rejected
 on them - tested against every labelled frame, neither rejected anything the other checks did not.
 
+# The two loading screens, and the AutoSplitter
+
+The game has two of them:
+
+- **Area loads** also show a tip line at the top and a row of four collectible icons along the bottom.
+  These happen at consistent points in a run.
+- **Plain loads** show the mask alone on black, and happen at inconsistent points.
+
+**Both have their time removed** - the timer pauses for either, and nothing about that depends on which
+one it is. But the **AutoSplitter only counts area loads**, because they are the ones that reliably mark
+the same point in every run. If you are setting "Number of Loads per Split", count only the loading
+screens that show the icons.
+
+The detection log records which kind each load was, so you can check after a run rather than having to
+watch for it.
+
 A frame only flips the state once the answer has agreed for several consecutive frames, to reject
 single-frame noise; at that point game time is paused, and it resumes the same way once the mask stops
 being detected.

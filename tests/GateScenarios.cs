@@ -44,6 +44,16 @@ static class GateScenarios
         Fill(b, Rectangle.FromLTRB(138, 145, 161, 160), c);
     }
 
+    // The row of collectible icons an area load draws along the bottom. Only the lit fraction of
+    // MaskDetector.StatsRegion matters, so four blocks stand in for four icons.
+    static void DrawStats(Bitmap b)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            Fill(b, new Rectangle(70 + i * 45, 200, 35, 50), Color.FromArgb(200, 200, 60));
+        }
+    }
+
     static DetectionResult Report(string label, Bitmap b)
     {
         Calibration calibration = default(Calibration);
@@ -79,11 +89,46 @@ static class GateScenarios
                           ", hue " + MaskGates.MinHue + "-" + MaskGates.MaxHue +
                           "  (saturation and value are measured but not gated)\n");
 
-        // The baseline everything else is a variation on.
+        // The baseline everything else is a variation on. Also the plain load: mask alone on black,
+        // nothing along the bottom.
         using (var b = Black())
         {
             DrawMask(b, MaskBlue);
-            Expect("Genuine loading screen (must be ACCEPTED):", b, DetectionStage.Accepted);
+            DetectionResult plain = Report("Plain loading screen (ACCEPTED, not an area load):", b);
+
+            if (plain.RejectedAt != DetectionStage.Accepted)
+            {
+                Console.WriteLine("  ^^ WRONG: a plain load must still be a load\r\n");
+                failures++;
+            }
+
+            // The one that matters. A plain load is still a load and still pauses the timer; the only
+            // thing the statistics decide is whether the autosplitter counts it.
+            if (plain.HasStats)
+            {
+                Console.WriteLine("  ^^ WRONG: no statistics were drawn, so this is not an area load\r\n");
+                failures++;
+            }
+        }
+
+        // The same load with the statistics row along the bottom - what the autosplitter counts.
+        using (var b = Black())
+        {
+            DrawMask(b, MaskBlue);
+            DrawStats(b);
+            DetectionResult area = Report("Area loading screen (ACCEPTED, area load):", b);
+
+            if (area.RejectedAt != DetectionStage.Accepted)
+            {
+                Console.WriteLine("  ^^ WRONG: the statistics must not stop it being a load\r\n");
+                failures++;
+            }
+
+            if (!area.HasStats)
+            {
+                Console.WriteLine("  ^^ WRONG: statistics were drawn, so this is an area load\r\n");
+                failures++;
+            }
         }
 
         // Ordinary gameplay. The reference patch is not black, and nothing downstream even runs -

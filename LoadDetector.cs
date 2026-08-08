@@ -49,6 +49,24 @@ namespace Sly4BHLoadDetector
 
         public MaskMetrics Mask;
 
+        // Which of the two loading screens this is: an area load shows the statistics along the
+        // bottom, a plain load shows the mask alone.
+        //
+        // Reported, never gated on. Both kinds are loads and both must pause the timer; this exists
+        // only so the autosplitter can count the area ones. See MaskDetector.StatsRegion.
+        public float StatsFill;
+        public bool HasStats;
+
+        public string LoadTypeInfo
+        {
+            get
+            {
+                return (HasStats ? "area load" : "plain load") +
+                       " (stats fill " + StatsFill.ToString("0.000") +
+                       ", area needs >= " + MaskDetector.MinStatsFill.ToString("0.00") + ")";
+            }
+        }
+
         public string BlackInfo
         {
             get
@@ -102,7 +120,7 @@ namespace Sly4BHLoadDetector
                 case DetectionStage.DegenerateBox:
                     return "No mask: " + BlackInfo + "\r\n" + MaskInfo;
                 case DetectionStage.Accepted:
-                    return "LOADING: " + BlackInfo + "\r\n" + MaskInfo;
+                    return "LOADING, " + LoadTypeInfo + ": " + BlackInfo + "\r\n" + MaskInfo;
                 default:
                     return "Not the loading mask (" + GateInfo + "): " + BlackInfo + "\r\n" + MaskInfo;
             }
@@ -212,6 +230,12 @@ namespace Sly4BHLoadDetector
             // 2. Measure whatever is lit inside the fixed mask region.
             result.BinarizationThreshold = MaskDetector.BinarizationThreshold(result.FrameBlackLevel);
             result.Mask = MaskDetector.Measure(frame, result.BinarizationThreshold);
+
+            // Which loading screen this is. Measured here, after the black patch gate so ordinary
+            // gameplay never pays for it, and reported for rejected frames too so the log shows the
+            // statistics coming up during the transition into a load.
+            result.StatsFill = MaskDetector.MeasureStatsFill(frame, result.BinarizationThreshold);
+            result.HasStats = MaskDetector.HasStats(result.StatsFill);
 
             if (!result.Mask.HasForeground)
             {

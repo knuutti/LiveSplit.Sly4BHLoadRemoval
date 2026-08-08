@@ -104,8 +104,127 @@ static class DetectionTests
         failures += Check(Path.Combine(root, "notloading"), calibration, expectLoading: false, fatal: true);
         Check(Path.Combine(root, "ambiguous"), calibration, expectLoading: true, fatal: false);
 
+        failures += CheckLoadTypes(root, calibration);
+
         Sequence(Path.Combine(root, "sequence"), calibration);
         return failures;
+    }
+
+    // Every frame in loading\ must be identified as the right kind of loading screen.
+    //
+    // This is separate from the loading/notloading checks on purpose: getting the type wrong does not
+    // affect whether the timer pauses, only whether the autosplitter counts the load, so it is a
+    // different failure with a different consequence and deserves its own line in the output.
+    static int CheckLoadTypes(string root, Calibration calibration)
+    {
+        AreaLoadLabels labels;
+        if (!AreaLoadLabels.TryLoad(root, out labels))
+        {
+            return 0;   // this set does not label its load types
+        }
+
+        List<Frame> frames = Load(Path.Combine(root, "loading"));
+        if (frames.Count == 0)
+        {
+            return 0;
+        }
+
+        int passed = 0, area = 0, plain = 0;
+        var failed = new List<string>();
+
+        foreach (Frame f in frames)
+        {
+            using (Bitmap bmp = new Bitmap(f.Path))
+            {
+                DetectionResult result = LoadDetector.Detect(new FramePixels(bmp), calibration);
+                bool expected = labels.IsAreaLoad(f);
+
+                if (expected) area++; else plain++;
+
+                if (result.HasStats == expected)
+                {
+                    passed++;
+                }
+                else
+                {
+                    failed.Add(f.Name + " expected " + (expected ? "area" : "plain") +
+                               ", got " + (result.HasStats ? "area" : "plain") +
+                               " (stats fill " + result.StatsFill.ToString("0.000") + ")");
+                }
+            }
+        }
+
+        Console.WriteLine("load types".PadRight(12) + passed + "/" + frames.Count + " as expected" +
+                          "   (" + area + " area, " + plain + " plain)");
+
+        foreach (string f in failed)
+        {
+            Console.WriteLine("  MISLABELLED " + f);
+        }
+        Console.WriteLine();
+
+        return failed.Count;
+    }
+
+    // Which loading frames are area loads, from a set's arealoads.txt.
+    class AreaLoadLabels
+    {
+        bool all;
+        readonly List<int> from = new List<int>();
+        readonly List<int> to = new List<int>();
+
+        public static bool TryLoad(string setRoot, out AreaLoadLabels labels)
+        {
+            labels = null;
+            string path = Path.Combine(setRoot, "arealoads.txt");
+            if (!File.Exists(path))
+            {
+                return false;
+            }
+
+            labels = new AreaLoadLabels();
+            foreach (string line in File.ReadAllLines(path))
+            {
+                string s = line.Trim();
+                if (s.Length == 0 || s.StartsWith("#")) continue;
+
+                if (s == "all")
+                {
+                    labels.all = true;
+                    continue;
+                }
+
+                int dash = s.IndexOf('-');
+                if (dash > 0)
+                {
+                    labels.from.Add(int.Parse(s.Substring(0, dash).Trim()));
+                    labels.to.Add(int.Parse(s.Substring(dash + 1).Trim()));
+                }
+                else
+                {
+                    int single = int.Parse(s);
+                    labels.from.Add(single);
+                    labels.to.Add(single);
+                }
+            }
+
+            return true;
+        }
+
+        public bool IsAreaLoad(Frame frame)
+        {
+            if (all)
+            {
+                return true;
+            }
+
+            for (int i = 0; i < from.Count; i++)
+            {
+                if (frame.Number >= from[i] && frame.Number <= to[i]) return true;
+            }
+
+            return false;
+        }
     }
 
     // ---------------------------------------------------------------- measurement
@@ -155,6 +274,7 @@ static class DetectionTests
             var litHue = new Spread();
             var litSat = new Spread();
             var litVal = new Spread();
+            var stats = new Spread();
             int noForeground = 0, degenerate = 0, blackPatchRejected = 0;
 
             foreach (Frame f in frames)
@@ -184,9 +304,13 @@ static class DetectionTests
                     litSat.Add(m.LitMedianSaturation);
                     litVal.Add(m.LitMedianValue);
 
+                    float statsFill = MaskDetector.MeasureStatsFill(pixels, MaskDetector.BinarizationThreshold(level));
+                    stats.Add(statsFill);
+
                     if (verbose)
                     {
-                        Console.WriteLine("    [" + label + "] " + f.Name + "  blk=" + level + "  " + m);
+                        Console.WriteLine("    [" + label + "] " + f.Name + "  blk=" + level +
+                                          "  stats=" + statsFill.ToString("0.000") + "  " + m);
                     }
                 }
             }
@@ -205,6 +329,7 @@ static class DetectionTests
             Console.WriteLine("    lit median hue  " + litHue);
             Console.WriteLine("    lit median sat  " + litSat);
             Console.WriteLine("    lit median val  " + litVal);
+            Console.WriteLine("    stats fill      " + stats);
         }
     }
 

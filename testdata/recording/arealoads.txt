@@ -1,0 +1,11 @@
+# Which frames in loading\ are *area* loads - the loading screen that shows the statistics along the
+# bottom - as opposed to plain loads, which show the mask alone on black.
+#
+# Both are loads and both must pause the timer. The distinction exists only because the autosplitter
+# counts area loads only: they happen at consistent points in a run, plain ones do not.
+#
+# Each line is `all`, a single frame number, or `from-to`. Anything not listed is a plain load.
+# A set with no arealoads.txt is simply not checked for load type.
+#
+# This recording contains one of each: the load at 0:08.5 is plain, the one at 0:16.0 is an area load.
+962-1202
