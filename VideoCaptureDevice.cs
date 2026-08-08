@@ -435,6 +435,8 @@ namespace Sly4BHLoadDetector
         // than delaying it.
         private Bitmap pendingFrame;
         private Rectangle pendingRegion;
+        private int pendingTargetWidth;
+        private int pendingTargetHeight;
 
         private int frameWidth;
         private int frameHeight;
@@ -470,7 +472,14 @@ namespace Sly4BHLoadDetector
         // Decoding happens under the lock. The poll thread can therefore be held up briefly, which
         // only means the next frame it stores is a few milliseconds newer - far cheaper than the
         // whole-frame copy this replaced.
-        public Bitmap CaptureRegion(Rectangle region)
+        // Decodes `region` of the most recent frame straight to `targetWidth` x `targetHeight`,
+        // area-averaging on the way down. Pass 0 for either to get the region at its native size.
+        //
+        // Doing the scale here rather than handing a full-resolution Bitmap to GDI+ is the whole
+        // point: at 1080p, decoding the frame and then resizing it to 300x300 cost 13.8ms + 26.7ms
+        // per frame, two full passes over 2 megapixels to produce 90k pixels. This walks the source
+        // once and converts once per *destination* pixel.
+        public Bitmap CaptureScaled(Rectangle region, int targetWidth, int targetHeight)
         {
             lock (frameLock)
             {
@@ -485,16 +494,20 @@ namespace Sly4BHLoadDetector
                     clamped = new Rectangle(0, 0, frameWidth, frameHeight);
                 }
 
-                // The usual case: the poll thread decoded this exact region while the caller was busy
+                if (targetWidth <= 0) targetWidth = clamped.Width;
+                if (targetHeight <= 0) targetHeight = clamped.Height;
+
+                // The usual case: the poll thread decoded this exact request while the caller was busy
                 // with the previous frame, so this hands it over and returns immediately.
-                if (pendingFrame != null && pendingRegion == clamped)
+                if (pendingFrame != null && pendingRegion == clamped &&
+                    pendingTargetWidth == targetWidth && pendingTargetHeight == targetHeight)
                 {
                     Bitmap ready = pendingFrame;
                     pendingFrame = null;
                     return ready;
                 }
 
-                // A different region (the settings preview asking for the whole frame, or the crop
+                // A different request (the settings preview asking for the whole frame, or the crop
                 // just changed). Decode it here and record it, so the next one is ready in advance.
                 if (pendingFrame != null)
                 {
@@ -503,8 +516,18 @@ namespace Sly4BHLoadDetector
                 }
 
                 pendingRegion = clamped;
-                return BufferToBitmap(latestBuffer, clamped);
+                pendingTargetWidth = targetWidth;
+                pendingTargetHeight = targetHeight;
+                return BufferToBitmap(latestBuffer, clamped, targetWidth, targetHeight);
             }
+        }
+
+        // The region at its native size. At 1:1 each destination cell covers exactly one source
+        // pixel, so this is the same pixels the old direct decoder produced - which is what lets the
+        // A/B comparison in tools\CompareResize.cs treat it as the "before" path.
+        public Bitmap CaptureRegion(Rectangle region)
+        {
+            return CaptureScaled(region, 0, 0);
         }
 
         // The whole frame. Used by the settings preview and the diagnostic tools.
@@ -1099,6 +1122,7 @@ namespace Sly4BHLoadDetector
                     if (hr == DirectShow.S_OK && size > 0)
                     {
                         Rectangle decodeRegion = Rectangle.Empty;
+                        int decodeTargetWidth = 0, decodeTargetHeight = 0;
 
                         lock (frameLock)
                         {
@@ -1113,9 +1137,12 @@ namespace Sly4BHLoadDetector
                             // Decode one frame ahead, but only once the last one has been collected -
                             // that keeps the decode rate at the consumption rate instead of the
                             // device's, without ever making the consumer wait for it.
-                            if (pendingFrame == null && pendingRegion.Width > 0 && pendingRegion.Height > 0)
+                            if (pendingFrame == null && pendingRegion.Width > 0 && pendingRegion.Height > 0 &&
+                                pendingTargetWidth > 0 && pendingTargetHeight > 0)
                             {
                                 decodeRegion = pendingRegion;
+                                decodeTargetWidth = pendingTargetWidth;
+                                decodeTargetHeight = pendingTargetHeight;
                             }
                         }
 
@@ -1123,10 +1150,13 @@ namespace Sly4BHLoadDetector
                         {
                             // Outside the lock, and from this thread's own buffer rather than the
                             // shared one, so a caller collecting a frame never blocks behind it.
-                            Bitmap decoded = BufferToBitmap(buffer, decodeRegion);
+                            Bitmap decoded = BufferToBitmap(buffer, decodeRegion,
+                                                            decodeTargetWidth, decodeTargetHeight);
                             lock (frameLock)
                             {
-                                if (pendingFrame == null && pendingRegion == decodeRegion)
+                                if (pendingFrame == null && pendingRegion == decodeRegion &&
+                                    pendingTargetWidth == decodeTargetWidth &&
+                                    pendingTargetHeight == decodeTargetHeight)
                                 {
                                     pendingFrame = decoded;
                                 }
@@ -1210,86 +1240,113 @@ namespace Sly4BHLoadDetector
             }
         }
 
-        private Bitmap BufferToBitmap(byte[] buffer, Rectangle region)
+        private Bitmap BufferToBitmap(byte[] buffer, Rectangle region, int targetWidth, int targetHeight)
         {
+            // Source extent of each destination cell, precomputed once per axis - the x ranges are the
+            // same for every row, so there is no point recomputing them 300 times.
+            var xStart = new int[targetWidth];
+            var xEnd = new int[targetWidth];
+            ComputeRanges(region.Width, targetWidth, xStart, xEnd);
+
+            var yStart = new int[targetHeight];
+            var yEnd = new int[targetHeight];
+            ComputeRanges(region.Height, targetHeight, yStart, yEnd);
+
             switch (frameLayout)
             {
                 case FrameLayout.Nv12:
-                    return Nv12ToBitmap(buffer, frameWidth, frameHeight, region);
+                    return ScaleNv12(buffer, frameWidth, frameHeight, region,
+                                     targetWidth, targetHeight, xStart, xEnd, yStart, yEnd);
                 case FrameLayout.Yuy2:
-                    return PackedYuvToBitmap(buffer, frameWidth, frameHeight, region, lumaFirst: true);
+                    return ScalePackedYuv(buffer, frameWidth, frameHeight, region,
+                                          targetWidth, targetHeight, xStart, xEnd, yStart, yEnd,
+                                          lumaFirst: true);
                 case FrameLayout.Uyvy:
-                    return PackedYuvToBitmap(buffer, frameWidth, frameHeight, region, lumaFirst: false);
+                    return ScalePackedYuv(buffer, frameWidth, frameHeight, region,
+                                          targetWidth, targetHeight, xStart, xEnd, yStart, yEnd,
+                                          lumaFirst: false);
                 default:
-                    return RgbToBitmap(buffer, frameWidth, frameHeight, region,
-                                       frameLayout == FrameLayout.Rgb32 ? 32 : 24);
+                    return ScaleRgb(buffer, frameWidth, frameHeight, region,
+                                    targetWidth, targetHeight, xStart, xEnd, yStart, yEnd,
+                                    frameLayout == FrameLayout.Rgb32 ? 32 : 24);
             }
         }
 
-        // RGB sample grabber buffers are bottom-up DIBs, so the rows are copied in reverse.
+        // Half-open source range [start, end) covering each destination cell.
         //
-        // 24bpp and 32bpp are both plain BGR(A) in the channel order the rest of the detector assumes,
-        // so the copy is a straight memcpy per row either way - only the stride differs.
-        private static Bitmap RgbToBitmap(byte[] buffer, int width, int height, Rectangle region, int bitCount)
+        // Downscaling gives contiguous non-overlapping bins that tile the source exactly, which is
+        // what makes this an area average. Upscaling would give an empty range, so it is widened to a
+        // single pixel - nearest-neighbour, which is all that can be recovered anyway.
+        private static void ComputeRanges(int sourceLength, int targetLength, int[] start, int[] end)
         {
-            PixelFormat format = bitCount == 32 ? PixelFormat.Format32bppRgb : PixelFormat.Format24bppRgb;
-            int bytesPerPixel = bitCount / 8;
-            int stride = ((width * bytesPerPixel) + 3) & ~3;
-
-            Bitmap bmp = new Bitmap(region.Width, region.Height, format);
-            BitmapData data = bmp.LockBits(new Rectangle(0, 0, region.Width, region.Height),
-                                           ImageLockMode.WriteOnly, format);
-            try
+            for (int i = 0; i < targetLength; i++)
             {
-                int rowBytes = region.Width * bytesPerPixel;
-                for (int y = 0; y < region.Height; y++)
-                {
-                    int sourceRow = height - 1 - (region.Top + y);
-                    int sourceOffset = sourceRow * stride + region.Left * bytesPerPixel;
-                    IntPtr destination = new IntPtr(data.Scan0.ToInt64() + (long)y * data.Stride);
-                    Marshal.Copy(buffer, sourceOffset, destination, rowBytes);
-                }
-            }
-            finally
-            {
-                bmp.UnlockBits(data);
-            }
+                int s = (int)((long)i * sourceLength / targetLength);
+                int e = (int)((long)(i + 1) * sourceLength / targetLength);
 
-            return bmp;
+                if (s >= sourceLength) s = sourceLength - 1;
+                if (e <= s) e = s + 1;
+                if (e > sourceLength) e = sourceLength;
+
+                start[i] = s;
+                end[i] = e;
+            }
         }
 
         // NV12: a full-resolution luma plane, then one half-resolution plane of interleaved U,V - so
-        // each chroma pair covers a 2x2 block of pixels.
+        // each chroma pair covers a 2x2 block of pixels. Stored top-down, unlike the RGB layouts.
         //
-        // Unlike the RGB layouts these are stored top-down, so the rows are not reversed.
-        // Decoded output is 32bpp, not 24bpp. Writing the extra byte costs nothing in a loop that is
-        // already doing the colour maths per pixel, and it is what GDI+ works in natively - handing
-        // ResizeImage a 24bpp source makes it convert first, which measured slower than the decode.
-        private static Bitmap Nv12ToBitmap(byte[] buffer, int width, int height, Rectangle region)
+        // The averaging happens in YUV and the colour conversion runs once per *destination* pixel.
+        // That is not an approximation: the YUV->RGB matrix is linear in Y, U and V, so averaging
+        // before converting equals averaging after it, up to clamping at the extremes. It is what
+        // makes this cheap - ~3M integer adds instead of 2M colour conversions.
+        private static Bitmap ScaleNv12(byte[] buffer, int width, int height, Rectangle region,
+                                        int targetWidth, int targetHeight,
+                                        int[] xStart, int[] xEnd, int[] yStart, int[] yEnd)
         {
+            int frameStride = width;
             int lumaSize = width * height;
-            Bitmap bmp = new Bitmap(region.Width, region.Height, PixelFormat.Format32bppRgb);
-            BitmapData data = bmp.LockBits(new Rectangle(0, 0, region.Width, region.Height),
+
+            Bitmap bmp = new Bitmap(targetWidth, targetHeight, PixelFormat.Format32bppRgb);
+            BitmapData data = bmp.LockBits(new Rectangle(0, 0, targetWidth, targetHeight),
                                            ImageLockMode.WriteOnly, PixelFormat.Format32bppRgb);
             try
             {
                 var row = new byte[data.Stride];
                 bool hd = height >= 720;
 
-                for (int y = 0; y < region.Height; y++)
+                for (int dy = 0; dy < targetHeight; dy++)
                 {
-                    int sourceY = region.Top + y;
-                    int lumaRow = sourceY * width;
-                    int chromaRow = lumaSize + (sourceY / 2) * width;
+                    int y0 = region.Top + yStart[dy];
+                    int y1 = region.Top + yEnd[dy];
 
-                    for (int x = 0; x < region.Width; x++)
+                    for (int dx = 0; dx < targetWidth; dx++)
                     {
-                        int sourceX = region.Left + x;
-                        int chroma = chromaRow + (sourceX & ~1);
-                        WriteRgb(row, x * 4, buffer[lumaRow + sourceX], buffer[chroma], buffer[chroma + 1], hd);
+                        int x0 = region.Left + xStart[dx];
+                        int x1 = region.Left + xEnd[dx];
+
+                        int sumY = 0, sumU = 0, sumV = 0, count = 0;
+
+                        for (int sy = y0; sy < y1; sy++)
+                        {
+                            int lumaRow = sy * frameStride;
+                            int chromaRow = lumaSize + (sy >> 1) * frameStride;
+
+                            for (int sx = x0; sx < x1; sx++)
+                            {
+                                sumY += buffer[lumaRow + sx];
+                                int chroma = chromaRow + (sx & ~1);
+                                sumU += buffer[chroma];
+                                sumV += buffer[chroma + 1];
+                                count++;
+                            }
+                        }
+
+                        WriteRgb(row, dx * 4, (byte)(sumY / count), (byte)(sumU / count),
+                                 (byte)(sumV / count), hd);
                     }
 
-                    Marshal.Copy(row, 0, new IntPtr(data.Scan0.ToInt64() + (long)y * data.Stride), data.Stride);
+                    Marshal.Copy(row, 0, new IntPtr(data.Scan0.ToInt64() + (long)dy * data.Stride), data.Stride);
                 }
             }
             finally
@@ -1301,34 +1358,111 @@ namespace Sly4BHLoadDetector
         }
 
         // YUY2 is Y0 U Y1 V, UYVY is U Y0 V Y1 - one chroma pair per two horizontally adjacent pixels.
-        private static Bitmap PackedYuvToBitmap(byte[] buffer, int width, int height, Rectangle region,
-                                                bool lumaFirst)
+        private static Bitmap ScalePackedYuv(byte[] buffer, int width, int height, Rectangle region,
+                                             int targetWidth, int targetHeight,
+                                             int[] xStart, int[] xEnd, int[] yStart, int[] yEnd,
+                                             bool lumaFirst)
         {
-            int stride = width * 2;
-            Bitmap bmp = new Bitmap(region.Width, region.Height, PixelFormat.Format32bppRgb);
-            BitmapData data = bmp.LockBits(new Rectangle(0, 0, region.Width, region.Height),
+            int frameStride = width * 2;
+            Bitmap bmp = new Bitmap(targetWidth, targetHeight, PixelFormat.Format32bppRgb);
+            BitmapData data = bmp.LockBits(new Rectangle(0, 0, targetWidth, targetHeight),
                                            ImageLockMode.WriteOnly, PixelFormat.Format32bppRgb);
             try
             {
                 var row = new byte[data.Stride];
                 bool hd = height >= 720;
 
-                for (int y = 0; y < region.Height; y++)
+                for (int dy = 0; dy < targetHeight; dy++)
                 {
-                    int sourceRow = (region.Top + y) * stride;
+                    int y0 = region.Top + yStart[dy];
+                    int y1 = region.Top + yEnd[dy];
 
-                    for (int x = 0; x < region.Width; x++)
+                    for (int dx = 0; dx < targetWidth; dx++)
                     {
-                        int sourceX = region.Left + x;
-                        int pair = sourceRow + (sourceX >> 1) * 4;
-                        int luma = lumaFirst ? pair + ((sourceX & 1) << 1) : pair + 1 + ((sourceX & 1) << 1);
-                        int u = lumaFirst ? pair + 1 : pair;
-                        int v = lumaFirst ? pair + 3 : pair + 2;
+                        int x0 = region.Left + xStart[dx];
+                        int x1 = region.Left + xEnd[dx];
 
-                        WriteRgb(row, x * 4, buffer[luma], buffer[u], buffer[v], hd);
+                        int sumY = 0, sumU = 0, sumV = 0, count = 0;
+
+                        for (int sy = y0; sy < y1; sy++)
+                        {
+                            int sourceRow = sy * frameStride;
+
+                            for (int sx = x0; sx < x1; sx++)
+                            {
+                                int pair = sourceRow + (sx >> 1) * 4;
+                                int luma = lumaFirst ? pair + ((sx & 1) << 1) : pair + 1 + ((sx & 1) << 1);
+
+                                sumY += buffer[luma];
+                                sumU += buffer[lumaFirst ? pair + 1 : pair];
+                                sumV += buffer[lumaFirst ? pair + 3 : pair + 2];
+                                count++;
+                            }
+                        }
+
+                        WriteRgb(row, dx * 4, (byte)(sumY / count), (byte)(sumU / count),
+                                 (byte)(sumV / count), hd);
                     }
 
-                    Marshal.Copy(row, 0, new IntPtr(data.Scan0.ToInt64() + (long)y * data.Stride), data.Stride);
+                    Marshal.Copy(row, 0, new IntPtr(data.Scan0.ToInt64() + (long)dy * data.Stride), data.Stride);
+                }
+            }
+            finally
+            {
+                bmp.UnlockBits(data);
+            }
+
+            return bmp;
+        }
+
+        // RGB sample grabber buffers are bottom-up DIBs, so the source row is mirrored.
+        private static Bitmap ScaleRgb(byte[] buffer, int width, int height, Rectangle region,
+                                       int targetWidth, int targetHeight,
+                                       int[] xStart, int[] xEnd, int[] yStart, int[] yEnd, int bitCount)
+        {
+            int bytesPerPixel = bitCount / 8;
+            int frameStride = ((width * bytesPerPixel) + 3) & ~3;
+            int lastRow = height - 1;
+
+            Bitmap bmp = new Bitmap(targetWidth, targetHeight, PixelFormat.Format32bppRgb);
+            BitmapData data = bmp.LockBits(new Rectangle(0, 0, targetWidth, targetHeight),
+                                           ImageLockMode.WriteOnly, PixelFormat.Format32bppRgb);
+            try
+            {
+                var row = new byte[data.Stride];
+
+                for (int dy = 0; dy < targetHeight; dy++)
+                {
+                    int y0 = region.Top + yStart[dy];
+                    int y1 = region.Top + yEnd[dy];
+
+                    for (int dx = 0; dx < targetWidth; dx++)
+                    {
+                        int x0 = region.Left + xStart[dx];
+                        int x1 = region.Left + xEnd[dx];
+
+                        int sumB = 0, sumG = 0, sumR = 0, count = 0;
+
+                        for (int sy = y0; sy < y1; sy++)
+                        {
+                            int sourceRow = (lastRow - sy) * frameStride;
+
+                            for (int sx = x0; sx < x1; sx++)
+                            {
+                                int i = sourceRow + sx * bytesPerPixel;
+                                sumB += buffer[i];
+                                sumG += buffer[i + 1];
+                                sumR += buffer[i + 2];
+                                count++;
+                            }
+                        }
+
+                        row[dx * 4] = (byte)(sumB / count);
+                        row[dx * 4 + 1] = (byte)(sumG / count);
+                        row[dx * 4 + 2] = (byte)(sumR / count);
+                    }
+
+                    Marshal.Copy(row, 0, new IntPtr(data.Scan0.ToInt64() + (long)dy * data.Stride), data.Stride);
                 }
             }
             finally

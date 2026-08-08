@@ -69,23 +69,19 @@ static class BenchCapture
             int frames = 0;
             while (total.Elapsed.TotalSeconds < seconds)
             {
-                // Exactly what ComponentSettings.CaptureFromVideoDevice does per frame.
+                // Exactly what ComponentSettings.CaptureFromVideoDevice does per frame: crop and
+                // downscale in one pass, no GDI+ resize.
                 grab.Start();
-                Bitmap region = source.CaptureRegion(crop);
+                Bitmap small = source.CaptureScaled(crop, 300, 300);
                 grab.Stop();
 
-                if (region == null) continue;
-
-                resize.Start();
-                Bitmap small = ImageCapture.ResizeImage(region, 300, 300);
-                resize.Stop();
+                if (small == null) continue;
 
                 detect.Start();
                 LoadDetector.Detect(new FramePixels(small), calibration);
                 detect.Stop();
 
                 small.Dispose();
-                region.Dispose();
                 frames++;
             }
 
@@ -95,8 +91,7 @@ static class BenchCapture
                               " in " + total.Elapsed.TotalSeconds.ToString("0.0") + "s" +
                               "  -> " + (frames / total.Elapsed.TotalSeconds).ToString("0.0") + "/s");
             Console.WriteLine();
-            Report("CaptureRegion   ", grab, frames);
-            Report("ResizeImage     ", resize, frames);
+            Report("CaptureScaled   ", grab, frames);
             Report("Detect          ", detect, frames);
 
             double perFrame = total.Elapsed.TotalMilliseconds / Math.Max(1, frames);

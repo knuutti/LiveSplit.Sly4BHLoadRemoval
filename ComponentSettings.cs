@@ -385,19 +385,17 @@ namespace LiveSplit.UI.Components
                 }
             }
 
-            // Decodes only this region, straight out of the device's raw sample. The obvious version -
-            // decode the whole frame, hand over a copy, then crop it - cost 11.8ms per frame measured
-            // at 1080p, for pixels that were about to be thrown away.
-            Bitmap region = source.CaptureRegion(wanted);
-            if (region == null)
-            {
-                return null;
-            }
-
-            using (region)
-            {
-                return ImageCapture.ResizeImage(region, info.captureSizeX, info.captureSizeY);
-            }
+            // Crop and downscale in one pass, straight out of the device's raw sample - no
+            // full-resolution bitmap is ever built and ImageCapture.ResizeImage is not involved.
+            //
+            // At 1080p the two-step version cost 13.8ms to decode plus 26.7ms for the GDI+ resize,
+            // two full passes over 2 megapixels to produce 90k pixels, against 0.16ms for the
+            // detection itself. This walks the source once and converts once per output pixel.
+            //
+            // Note this means the video path and the display path resample differently - see
+            // CLAUDE.md. That is safe because they are separate capture pipelines that are calibrated
+            // and fixtured separately anyway, and it is why the display path was left alone.
+            return source.CaptureScaled(wanted, info.captureSizeX, info.captureSizeY);
         }
 
         // Starts the selected device if it isn't already running, and hands back the running source.

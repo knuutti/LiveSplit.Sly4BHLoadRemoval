@@ -27,11 +27,11 @@ against the solid black backdrop that surrounds it. See "How does it work?" belo
     - "could not build a capture graph" means the device is not receiving a picture. Switch the console
       on and it will connect by itself within a few seconds; there is no need to reselect anything.
     - The device is asked for the smallest resolution it offers at 640x360 or above, which is plenty to
-      find the mask and keeps the timer reacting quickly. If you are feeding LiveSplit through **OBS's
-      virtual camera**, note that it only ever outputs OBS's canvas size - at 1080p that is roughly ten
-      times more work per frame than a capture card set to 640x360, and you will see the timer pause a
-      little later because of it. Either lower the OBS canvas or point the component straight at the
-      capture card.
+      find the mask and keeps the timer reacting quickly.
+    - **A capture card can only be opened by one program at a time.** If OBS is using it, this
+      component cannot, and you will get "could not build a capture graph". Either deactivate the
+      source in OBS (right-click it -> Deactivate), or leave OBS running and select **OBS Virtual
+      Camera** here instead - that works fine and costs only a few milliseconds a frame.
 - You can specify to capture either the full primary Display (default) or an open window. This window
   has to be open (not minimized) but does not have to be in the foreground.
 - Under preview, crop the capture down to **the entire game feed** (the whole 16:9 picture), not just the

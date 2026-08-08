@@ -423,8 +423,25 @@ appears totally inert is usually missing a calibration, not broken.
   this is all capture overhead**, and the debounce multiplies it - `AutoSplitterJitterToleranceFrames`
   is counted in updates, so anything that slows a frame costs three times that at each end of a load.
 
-  Three things came out of that, in increasing order of value:
+  This matters more than it looks, because **most users end up on the slow path whether they want to
+  or not**: capture cards are exclusive, so anyone with OBS open cannot also open the card here
+  (`RenderStream` returns `E_FAIL`) and has to use OBS Virtual Camera instead - which only ever emits
+  OBS's canvas size.
 
+  Four things came out of that, in increasing order of value:
+
+  - **The crop and the downscale happen inside the decode** (`CaptureScaled`), so no full-resolution
+    bitmap is ever built and `ImageCapture.ResizeImage` is not involved on this path at all. Measured
+    at 720p: **2.56ms per frame, 391 updates/s**, against 41ms at 1080p for the two-step version.
+    The averaging is done in YUV with the colour conversion running once per *destination* pixel -
+    that is exact, not an approximation, because the YUV->RGB matrix is linear in Y, U and V, so
+    averaging before converting equals averaging after it up to clamping.
+
+    **The two capture paths therefore resample differently**: video capture area-averages, display and
+    window capture still go through GDI+ `HighQualityBicubic`. That is deliberate and safe - they are
+    separate capture pipelines, calibrated separately and fixtured separately (`testdata\recording`
+    vs `testdata\live`), which is exactly the convention that already exists here. Do not "unify"
+    them without regenerating fixtures for whichever one changes.
   - **The device is asked for the smallest format at or above 640x360** (`ChooseCaptureFormat`, via
     `IAMStreamConfig`, before the pin connects). Everything downstream is proportional to source size
     and the result is squashed to 300x300 anyway, so capturing 1080p to find a 46px mask is pure cost.
@@ -445,10 +462,15 @@ appears totally inert is usually missing a calibration, not broken.
   pay off combined with format selection, which makes the conversion cheap enough not to matter. The
   decode-ahead then recovered most of the rest (46 -> 41ms at 1080p).
 
-  **A device that only offers one large format is still slow, and slightly worse than before all
-  this.** OBS's virtual camera emits OBS's canvas size and nothing else: 1080p, ~41ms per frame
-  against ~37ms for the original design. Everything here is aimed at devices that can be asked for
-  something smaller. Lower the OBS canvas, or point the component at the capture card directly.
+  **`tools\CompareResize.cs` is the gate on any change to this.** It takes one frame from a device and
+  produces 300x300 both ways - full-resolution decode + `ResizeImage` against `CaptureScaled` - then
+  prints the pixel delta and, more usefully, both paths' `DetectionResult`. The three numbers that
+  matter are the gated ones: fill, aspect, median hue. **Run it on a loading screen**; on gameplay
+  there is no mask and the mask numbers mean nothing.
+
+  A capture device that only offers one large format is no longer a problem for cost, but it is still
+  worth lowering an OBS canvas: the source resolution sets how much real detail the mask has before
+  the squash to 300x300, not just how much work it is.
 
   `tools\ListVideoDevices.cs` drives all of this without LiveSplit - it lists devices, and given an
   index opens one and saves a frame. First thing to run against "my capture card isn't in the
