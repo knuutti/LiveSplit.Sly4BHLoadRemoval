@@ -42,18 +42,12 @@
             this.scalingLabel = new System.Windows.Forms.Label();
             this.trackBar1 = new System.Windows.Forms.TrackBar();
             this.panel1 = new System.Windows.Forms.Panel();
-#if DEBUG
-            this.saveCutout = new System.Windows.Forms.Button();
-#endif
             this.updatePreviewButton = new System.Windows.Forms.Button();
             this.tabControl1 = new System.Windows.Forms.TabControl();
             this.tabPage1 = new System.Windows.Forms.TabPage();
             this.blacklevelLabel = new System.Windows.Forms.Label();
             this.label8 = new System.Windows.Forms.Label();
             this.calibrateBlacklevelButton = new System.Windows.Forms.Button();
-#if DEBUG
-            this.chkSaveDetectionLog = new System.Windows.Forms.CheckBox();
-#endif
             this.tabPage2 = new System.Windows.Forms.TabPage();
             this.chkAutoSplitterDisableOnSkip = new System.Windows.Forms.CheckBox();
             this.label6 = new System.Windows.Forms.Label();
@@ -61,9 +55,6 @@
             this.autoSplitNameLbl = new System.Windows.Forms.Label();
             this.autoSplitCategoryLbl = new System.Windows.Forms.Label();
             this.enableAutoSplitterChk = new System.Windows.Forms.CheckBox();
-#if DEBUG
-            this.debugLabel = new System.Windows.Forms.Label();
-#endif
             ((System.ComponentModel.ISupportInitialize)(this.previewPictureBox)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.croppedPreviewPictureBox)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBar1)).BeginInit();
@@ -79,7 +70,7 @@
             this.lblVersion.AutoSize = true;
             this.lblVersion.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lblVersion.ForeColor = System.Drawing.SystemColors.ControlDark;
-            this.lblVersion.Location = new System.Drawing.Point(431, 490);
+            this.lblVersion.Location = new System.Drawing.Point(13, 10);
             this.lblVersion.Name = "lblVersion";
             this.lblVersion.Size = new System.Drawing.Size(37, 13);
             this.lblVersion.TabIndex = 21;
@@ -96,9 +87,9 @@
             this.processListComboBox.TabIndex = 22;
             this.processListComboBox.DropDown += new System.EventHandler(this.processListComboBox_DropDown);
             this.processListComboBox.SelectedIndexChanged += new System.EventHandler(this.comboBox1_SelectedIndexChanged);
-            //
+            // 
             // radioDisplay
-            //
+            // 
             this.radioDisplay.AutoSize = true;
             this.radioDisplay.Checked = true;
             this.radioDisplay.Location = new System.Drawing.Point(85, 8);
@@ -109,33 +100,32 @@
             this.radioDisplay.Text = "Display";
             this.radioDisplay.UseVisualStyleBackColor = true;
             this.radioDisplay.CheckedChanged += new System.EventHandler(this.CaptureSourceRadio_CheckedChanged);
-            //
+            // 
             // radioVideoCapture
-            //
+            // 
             this.radioVideoCapture.AutoSize = true;
             this.radioVideoCapture.Location = new System.Drawing.Point(154, 8);
             this.radioVideoCapture.Name = "radioVideoCapture";
-            this.radioVideoCapture.Size = new System.Drawing.Size(96, 17);
+            this.radioVideoCapture.Size = new System.Drawing.Size(91, 17);
             this.radioVideoCapture.TabIndex = 21;
             this.radioVideoCapture.Text = "Video capture";
             this.radioVideoCapture.UseVisualStyleBackColor = true;
             this.radioVideoCapture.CheckedChanged += new System.EventHandler(this.CaptureSourceRadio_CheckedChanged);
-            //
+            // 
             // captureStatusLabel
-            //
+            // 
             this.captureStatusLabel.AutoSize = true;
             this.captureStatusLabel.ForeColor = System.Drawing.SystemColors.GrayText;
             this.captureStatusLabel.Location = new System.Drawing.Point(258, 10);
             this.captureStatusLabel.Name = "captureStatusLabel";
             this.captureStatusLabel.Size = new System.Drawing.Size(0, 13);
             this.captureStatusLabel.TabIndex = 44;
-            this.captureStatusLabel.Text = "";
             // 
             // label1
             // 
             this.label1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(30, 36);
+            this.label1.Location = new System.Drawing.Point(13, 36);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(47, 13);
             this.label1.TabIndex = 23;
@@ -159,7 +149,7 @@
             this.label2.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.label2.Location = new System.Drawing.Point(26, 138);
             this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(121, 16);
+            this.label2.Size = new System.Drawing.Size(120, 16);
             this.label2.TabIndex = 25;
             this.label2.Text = "Capture Preview";
             this.label2.TextAlign = System.Drawing.ContentAlignment.TopCenter;
@@ -180,7 +170,7 @@
             this.label4.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.label4.Location = new System.Drawing.Point(28, 343);
             this.label4.Name = "label4";
-            this.label4.Size = new System.Drawing.Size(185, 16);
+            this.label4.Size = new System.Drawing.Size(184, 16);
             this.label4.TabIndex = 30;
             this.label4.Text = "Cropped Capture Preview";
             this.label4.TextAlign = System.Drawing.ContentAlignment.TopCenter;
@@ -200,7 +190,7 @@
             this.scalingLabel.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.scalingLabel.Location = new System.Drawing.Point(50, 7);
             this.scalingLabel.Name = "scalingLabel";
-            this.scalingLabel.Size = new System.Drawing.Size(92, 16);
+            this.scalingLabel.Size = new System.Drawing.Size(91, 16);
             this.scalingLabel.TabIndex = 32;
             this.scalingLabel.Text = "Scaling: 100%";
             // 
@@ -223,9 +213,6 @@
             // 
             this.panel1.BackColor = System.Drawing.SystemColors.Control;
             this.panel1.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
-#if DEBUG
-            this.panel1.Controls.Add(this.saveCutout);
-#endif
             this.panel1.Controls.Add(this.updatePreviewButton);
             this.panel1.Controls.Add(this.scalingLabel);
             this.panel1.Controls.Add(this.trackBar1);
@@ -233,20 +220,7 @@
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(400, 52);
             this.panel1.TabIndex = 37;
-#if DEBUG
-            //
-            // saveCutout
-            //
-            this.saveCutout.AccessibleName = "";
-            this.saveCutout.Location = new System.Drawing.Point(290, 7);
-            this.saveCutout.Name = "saveCutout";
-            this.saveCutout.Size = new System.Drawing.Size(74, 33);
-            this.saveCutout.TabIndex = 39;
-            this.saveCutout.Text = "save Cutout";
-            this.saveCutout.UseVisualStyleBackColor = true;
-            this.saveCutout.Click += new System.EventHandler(this.saveCutout_Click);
-#endif
-            //
+            // 
             // updatePreviewButton
             // 
             this.updatePreviewButton.Font = new System.Drawing.Font("Microsoft Sans Serif", 6.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
@@ -257,7 +231,7 @@
             this.updatePreviewButton.Text = "Update Preview";
             this.updatePreviewButton.UseVisualStyleBackColor = true;
             this.updatePreviewButton.Click += new System.EventHandler(this.updatePreviewButton_Click);
-            //
+            // 
             // tabControl1
             // 
             this.tabControl1.Controls.Add(this.tabPage1);
@@ -265,13 +239,11 @@
             this.tabControl1.Location = new System.Drawing.Point(0, 0);
             this.tabControl1.Name = "tabControl1";
             this.tabControl1.SelectedIndex = 0;
-            this.tabControl1.Size = new System.Drawing.Size(476, 532);
+            this.tabControl1.Size = new System.Drawing.Size(476, 564);
             this.tabControl1.TabIndex = 38;
             // 
             // tabPage1
             // 
-            // The capture-source row pushed the content past the tab's height, so it scrolls rather
-            // than cramping the two preview boxes.
             this.tabPage1.AutoScroll = true;
             this.tabPage1.BackColor = System.Drawing.SystemColors.Control;
             this.tabPage1.Controls.Add(this.radioDisplay);
@@ -280,9 +252,6 @@
             this.tabPage1.Controls.Add(this.blacklevelLabel);
             this.tabPage1.Controls.Add(this.label8);
             this.tabPage1.Controls.Add(this.calibrateBlacklevelButton);
-#if DEBUG
-            this.tabPage1.Controls.Add(this.chkSaveDetectionLog);
-#endif
             this.tabPage1.Controls.Add(this.panel1);
             this.tabPage1.Controls.Add(this.lblVersion);
             this.tabPage1.Controls.Add(this.label4);
@@ -295,30 +264,27 @@
             this.tabPage1.Location = new System.Drawing.Point(4, 22);
             this.tabPage1.Name = "tabPage1";
             this.tabPage1.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage1.Size = new System.Drawing.Size(468, 506);
+            this.tabPage1.Size = new System.Drawing.Size(468, 538);
             this.tabPage1.TabIndex = 0;
             this.tabPage1.Text = "Setup";
             // 
             // blacklevelLabel
             // 
-            // Sits between the "Black level:" caption and the Calibrate button at x=304, so its text
-            // has to stay under about 190px - see UpdateBlacklevelLabel, which keeps the wording short
-            // for that reason and puts the longer instructions in the debug label instead.
             this.blacklevelLabel.AutoSize = true;
             this.blacklevelLabel.Location = new System.Drawing.Point(110, 63);
             this.blacklevelLabel.Name = "blacklevelLabel";
-            this.blacklevelLabel.Size = new System.Drawing.Size(13, 13);
+            this.blacklevelLabel.Size = new System.Drawing.Size(151, 13);
             this.blacklevelLabel.TabIndex = 43;
-            this.blacklevelLabel.Text = "NOT SET - calibrate before the timer will pause";
+            this.blacklevelLabel.Text = "NOT SET - Calibration needed";
             // 
             // label8
             // 
             this.label8.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.label8.AutoSize = true;
             this.label8.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label8.Location = new System.Drawing.Point(30, 63);
+            this.label8.Location = new System.Drawing.Point(13, 63);
             this.label8.Name = "label8";
-            this.label8.Size = new System.Drawing.Size(59, 13);
+            this.label8.Size = new System.Drawing.Size(62, 13);
             this.label8.TabIndex = 42;
             this.label8.Text = "Black level:";
             // 
@@ -331,22 +297,7 @@
             this.calibrateBlacklevelButton.Text = "Calibrate";
             this.calibrateBlacklevelButton.UseVisualStyleBackColor = true;
             this.calibrateBlacklevelButton.Click += new System.EventHandler(this.CalibrateBlacklevelButton_Click);
-#if DEBUG
-            //
-            // chkSaveDetectionLog
-            //
-            this.chkSaveDetectionLog.AutoSize = true;
-            this.chkSaveDetectionLog.Checked = true;
-            this.chkSaveDetectionLog.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.chkSaveDetectionLog.Location = new System.Drawing.Point(151, 139);
-            this.chkSaveDetectionLog.Name = "chkSaveDetectionLog";
-            this.chkSaveDetectionLog.Size = new System.Drawing.Size(93, 17);
-            this.chkSaveDetectionLog.TabIndex = 39;
-            this.chkSaveDetectionLog.Text = "Detection Log";
-            this.chkSaveDetectionLog.UseVisualStyleBackColor = true;
-            this.chkSaveDetectionLog.CheckedChanged += new System.EventHandler(this.chkSaveDetectionLog_CheckedChanged);
-#endif
-            //
+            // 
             // tabPage2
             // 
             this.tabPage2.AutoScroll = true;
@@ -360,7 +311,7 @@
             this.tabPage2.Location = new System.Drawing.Point(4, 22);
             this.tabPage2.Name = "tabPage2";
             this.tabPage2.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage2.Size = new System.Drawing.Size(468, 506);
+            this.tabPage2.Size = new System.Drawing.Size(468, 543);
             this.tabPage2.TabIndex = 1;
             this.tabPage2.Text = "AutoSplitter";
             // 
@@ -381,7 +332,7 @@
             this.label6.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold);
             this.label6.Location = new System.Drawing.Point(251, 75);
             this.label6.Name = "label6";
-            this.label6.Size = new System.Drawing.Size(188, 16);
+            this.label6.Size = new System.Drawing.Size(187, 16);
             this.label6.TabIndex = 42;
             this.label6.Text = "Number of Loads per Split";
             this.label6.TextAlign = System.Drawing.ContentAlignment.TopCenter;
@@ -392,7 +343,7 @@
             this.label3.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold);
             this.label3.Location = new System.Drawing.Point(25, 75);
             this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(51, 16);
+            this.label3.Size = new System.Drawing.Size(50, 16);
             this.label3.TabIndex = 41;
             this.label3.Text = "Splits:";
             this.label3.TextAlign = System.Drawing.ContentAlignment.TopCenter;
@@ -403,7 +354,7 @@
             this.autoSplitNameLbl.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold);
             this.autoSplitNameLbl.Location = new System.Drawing.Point(24, 29);
             this.autoSplitNameLbl.Name = "autoSplitNameLbl";
-            this.autoSplitNameLbl.Size = new System.Drawing.Size(49, 16);
+            this.autoSplitNameLbl.Size = new System.Drawing.Size(48, 16);
             this.autoSplitNameLbl.TabIndex = 40;
             this.autoSplitNameLbl.Text = "Name";
             this.autoSplitNameLbl.TextAlign = System.Drawing.ContentAlignment.TopCenter;
@@ -414,7 +365,7 @@
             this.autoSplitCategoryLbl.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold);
             this.autoSplitCategoryLbl.Location = new System.Drawing.Point(24, 49);
             this.autoSplitCategoryLbl.Name = "autoSplitCategoryLbl";
-            this.autoSplitCategoryLbl.Size = new System.Drawing.Size(71, 16);
+            this.autoSplitCategoryLbl.Size = new System.Drawing.Size(70, 16);
             this.autoSplitCategoryLbl.TabIndex = 39;
             this.autoSplitCategoryLbl.Text = "Category";
             this.autoSplitCategoryLbl.TextAlign = System.Drawing.ContentAlignment.TopCenter;
@@ -429,39 +380,15 @@
             this.enableAutoSplitterChk.Text = "Enable AutoSplitter";
             this.enableAutoSplitterChk.UseVisualStyleBackColor = true;
             this.enableAutoSplitterChk.CheckedChanged += new System.EventHandler(this.enableAutoSplitterChk_CheckedChanged);
-#if DEBUG
-            //
-            // debugLabel
-            //
-            this.debugLabel.BackColor = System.Drawing.SystemColors.Info;
-            this.debugLabel.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.debugLabel.Font = new System.Drawing.Font("Consolas", 7.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.debugLabel.Location = new System.Drawing.Point(0, 535);
-            this.debugLabel.Name = "debugLabel";
-            this.debugLabel.Padding = new System.Windows.Forms.Padding(4);
-            this.debugLabel.Size = new System.Drawing.Size(474, 140);
-            this.debugLabel.TabIndex = 44;
-            this.debugLabel.Text = "Per-frame detection detail appears here while this dialog is open.";
-#endif
-            //
+            // 
             // Sly4BHLoadRemovalSettings
-            //
+            // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-#if DEBUG
-            this.Controls.Add(this.debugLabel);
-#endif
             this.Controls.Add(this.tabControl1);
             this.Name = "Sly4BHLoadRemovalSettings";
             this.Padding = new System.Windows.Forms.Padding(7);
-#if DEBUG
-            this.Size = new System.Drawing.Size(474, 682);
-#else
-            // Without the debug label the control ends just below the tab control (which is 532 tall
-            // at y=0), plus the bottom padding - keeping the 682 of a Debug build would leave 140px of
-            // empty space under the tabs in the layout editor.
-            this.Size = new System.Drawing.Size(474, 542);
-#endif
+            this.Size = new System.Drawing.Size(474, 574);
             ((System.ComponentModel.ISupportInitialize)(this.previewPictureBox)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.croppedPreviewPictureBox)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBar1)).EndInit();

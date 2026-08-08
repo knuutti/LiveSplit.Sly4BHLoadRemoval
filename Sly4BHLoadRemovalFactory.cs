@@ -11,7 +11,7 @@ namespace LiveSplit.Sly4BHLoadRemover
     {
         public string ComponentName
         {
-            get { return "Sly 4 / Hackpack Load Remover"; }
+            get { return "Load Remover (Sly4/Hackpack)"; }
         }
 
         public ComponentCategory Category
