@@ -1,0 +1,16 @@
+# Pinned black level for this set, instead of deriving one from calibrate\.
+#
+# Deriving it is not equivalent to a real calibration run: this set's calibrate\ folder holds only
+# three frames from a single load, while a real run accumulates the minimum over a whole session.
+# The binarization threshold is measured from this value, so the difference decides borderline frames.
+#
+# The value below is 0, not the 3 that a real layout produced under the previous detector. That is not
+# a correction - the reference patch moved. It used to be cols [120,160) x rows [30,50), above the
+# mask, where this capture reads 3; it is now cols [40,80) x rows [120,160), level with the mask, where
+# every loading frame of this set reads exactly 0. Any black level saved by an older layout is a
+# measurement of a different patch and does not carry over, which is why the component no longer reads
+# one back.
+#
+# Refresh this from a real layout's saved settings once a full calibration run has been done against
+# the current patch.
+blacklevel = 0

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<updates>
+  <update version="1.0">
+    <files>
+      <file path="Components/LiveSplit.Sly4BHLoadRemoval.dll" status="changed" />
+    </files>
+    <changelog>
+      <change>
+        Initial release: Image based load remover for Sly Cooper: Thieves in Time and Bentley's Hackpack for Playstation 3. Component can be integated into LiveSplit.
+      </change>
+    </changelog>
+  </update>
+</updates>
