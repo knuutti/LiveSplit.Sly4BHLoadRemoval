@@ -42,14 +42,18 @@
             this.scalingLabel = new System.Windows.Forms.Label();
             this.trackBar1 = new System.Windows.Forms.TrackBar();
             this.panel1 = new System.Windows.Forms.Panel();
+#if DEBUG
             this.saveCutout = new System.Windows.Forms.Button();
+#endif
             this.updatePreviewButton = new System.Windows.Forms.Button();
             this.tabControl1 = new System.Windows.Forms.TabControl();
             this.tabPage1 = new System.Windows.Forms.TabPage();
             this.blacklevelLabel = new System.Windows.Forms.Label();
             this.label8 = new System.Windows.Forms.Label();
             this.calibrateBlacklevelButton = new System.Windows.Forms.Button();
+#if DEBUG
             this.chkSaveDetectionLog = new System.Windows.Forms.CheckBox();
+#endif
             this.tabPage2 = new System.Windows.Forms.TabPage();
             this.chkAutoSplitterDisableOnSkip = new System.Windows.Forms.CheckBox();
             this.label6 = new System.Windows.Forms.Label();
@@ -57,7 +61,9 @@
             this.autoSplitNameLbl = new System.Windows.Forms.Label();
             this.autoSplitCategoryLbl = new System.Windows.Forms.Label();
             this.enableAutoSplitterChk = new System.Windows.Forms.CheckBox();
+#if DEBUG
             this.debugLabel = new System.Windows.Forms.Label();
+#endif
             ((System.ComponentModel.ISupportInitialize)(this.previewPictureBox)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.croppedPreviewPictureBox)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBar1)).BeginInit();
@@ -217,7 +223,9 @@
             // 
             this.panel1.BackColor = System.Drawing.SystemColors.Control;
             this.panel1.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
+#if DEBUG
             this.panel1.Controls.Add(this.saveCutout);
+#endif
             this.panel1.Controls.Add(this.updatePreviewButton);
             this.panel1.Controls.Add(this.scalingLabel);
             this.panel1.Controls.Add(this.trackBar1);
@@ -225,9 +233,10 @@
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(400, 52);
             this.panel1.TabIndex = 37;
-            // 
+#if DEBUG
+            //
             // saveCutout
-            // 
+            //
             this.saveCutout.AccessibleName = "";
             this.saveCutout.Location = new System.Drawing.Point(290, 7);
             this.saveCutout.Name = "saveCutout";
@@ -236,7 +245,8 @@
             this.saveCutout.Text = "save Cutout";
             this.saveCutout.UseVisualStyleBackColor = true;
             this.saveCutout.Click += new System.EventHandler(this.saveCutout_Click);
-            // 
+#endif
+            //
             // updatePreviewButton
             // 
             this.updatePreviewButton.Font = new System.Drawing.Font("Microsoft Sans Serif", 6.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
@@ -270,7 +280,9 @@
             this.tabPage1.Controls.Add(this.blacklevelLabel);
             this.tabPage1.Controls.Add(this.label8);
             this.tabPage1.Controls.Add(this.calibrateBlacklevelButton);
+#if DEBUG
             this.tabPage1.Controls.Add(this.chkSaveDetectionLog);
+#endif
             this.tabPage1.Controls.Add(this.panel1);
             this.tabPage1.Controls.Add(this.lblVersion);
             this.tabPage1.Controls.Add(this.label4);
@@ -319,9 +331,10 @@
             this.calibrateBlacklevelButton.Text = "Calibrate";
             this.calibrateBlacklevelButton.UseVisualStyleBackColor = true;
             this.calibrateBlacklevelButton.Click += new System.EventHandler(this.CalibrateBlacklevelButton_Click);
-            // 
+#if DEBUG
+            //
             // chkSaveDetectionLog
-            // 
+            //
             this.chkSaveDetectionLog.AutoSize = true;
             this.chkSaveDetectionLog.Checked = true;
             this.chkSaveDetectionLog.CheckState = System.Windows.Forms.CheckState.Checked;
@@ -332,7 +345,8 @@
             this.chkSaveDetectionLog.Text = "Detection Log";
             this.chkSaveDetectionLog.UseVisualStyleBackColor = true;
             this.chkSaveDetectionLog.CheckedChanged += new System.EventHandler(this.chkSaveDetectionLog_CheckedChanged);
-            // 
+#endif
+            //
             // tabPage2
             // 
             this.tabPage2.AutoScroll = true;
@@ -415,6 +429,7 @@
             this.enableAutoSplitterChk.Text = "Enable AutoSplitter";
             this.enableAutoSplitterChk.UseVisualStyleBackColor = true;
             this.enableAutoSplitterChk.CheckedChanged += new System.EventHandler(this.enableAutoSplitterChk_CheckedChanged);
+#if DEBUG
             //
             // debugLabel
             //
@@ -427,16 +442,26 @@
             this.debugLabel.Size = new System.Drawing.Size(474, 140);
             this.debugLabel.TabIndex = 44;
             this.debugLabel.Text = "Per-frame detection detail appears here while this dialog is open.";
+#endif
             //
             // Sly4BHLoadRemovalSettings
             //
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+#if DEBUG
             this.Controls.Add(this.debugLabel);
+#endif
             this.Controls.Add(this.tabControl1);
             this.Name = "Sly4BHLoadRemovalSettings";
             this.Padding = new System.Windows.Forms.Padding(7);
+#if DEBUG
             this.Size = new System.Drawing.Size(474, 682);
+#else
+            // Without the debug label the control ends just below the tab control (which is 532 tall
+            // at y=0), plus the bottom padding - keeping the 682 of a Debug build would leave 140px of
+            // empty space under the tabs in the layout editor.
+            this.Size = new System.Drawing.Size(474, 542);
+#endif
             ((System.ComponentModel.ISupportInitialize)(this.previewPictureBox)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.croppedPreviewPictureBox)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBar1)).EndInit();
@@ -476,11 +501,16 @@
 		private System.Windows.Forms.Label label3;
 		private System.Windows.Forms.Label label6;
 		private System.Windows.Forms.CheckBox chkAutoSplitterDisableOnSkip;
-    private System.Windows.Forms.CheckBox chkSaveDetectionLog;
-        private System.Windows.Forms.Button saveCutout;
         private System.Windows.Forms.Button calibrateBlacklevelButton;
         private System.Windows.Forms.Label blacklevelLabel;
         private System.Windows.Forms.Label label8;
+
+        // Debug-build only. Declared conditionally rather than merely hidden so that any use of them
+        // from a Release build is a compile error here instead of a NullReferenceException in LiveSplit.
+#if DEBUG
+        private System.Windows.Forms.CheckBox chkSaveDetectionLog;
+        private System.Windows.Forms.Button saveCutout;
         private System.Windows.Forms.Label debugLabel;
+#endif
     }
 }

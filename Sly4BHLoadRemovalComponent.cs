@@ -359,8 +359,13 @@ namespace LiveSplit.UI.Components
             ReloadLogFile();
         }
 
+        // Debug builds only. The checkbox that turns the detection log on and off is Debug-only, so a
+        // Release build would have no way to stop it once a layout came in with the setting on - and a
+        // log nobody can read or disable is exactly the debug output that has no business shipping.
+        // settings.SaveDetectionLog still round-trips through the layout XML either way.
         private void ReloadLogFile()
         {
+#if DEBUG
             if (settings.SaveDetectionLog == false)
                 return;
 
@@ -385,7 +390,7 @@ namespace LiveSplit.UI.Components
             log_file_writer.AutoFlush = true;
             Console.SetOut(log_file_writer);
             Console.SetError(log_file_writer);
-
+#endif
         }
 
         private bool SplitsAreDifferent(LiveSplitState newState)

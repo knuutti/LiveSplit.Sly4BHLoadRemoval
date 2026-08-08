@@ -117,7 +117,12 @@ invisible here and still needs a real run.
 
 ## Debugging detection changes
 
-Beyond the test suites, these are the three ways to see what the detector did on a live run:
+Beyond the test suites, these are the three ways to see what the detector did on a live run. **All
+three are `#if DEBUG` and exist only in a Debug build** - a Release DLL has no debug label, no "save
+Cutout" button, no "Detection Log" checkbox, and never writes a log. So **debug a detection problem
+with a Debug build**, not the one you ship. (Verify with
+`[Text.Encoding]::Unicode.GetString([IO.File]::ReadAllBytes($dll))` - none of those strings should
+appear in a Release DLL.)
 
 **If the timer pauses visibly late, suspect the debounce before the detector.** `IsGameTimePaused` is
 set the instant `UpdateDebouncedState` flips, so there is no lag between detection and LiveSplit - but
@@ -138,6 +143,12 @@ that difference is expected, not a symptom.
   This is the only way to see decisions during an actual run with the settings dialog closed. It records
   every `isLoading` transition plus a periodic trace every `DebugLogEveryNFrames` (60) frames - the
   periodic trace exists so a run that never detects anything still logs something.
+
+  The `SaveDetectionLog` *field* and its layout XML round-trip are unconditional; only the checkbox
+  and `ReloadLogFile`'s body are `#if DEBUG`. That split is deliberate: a Release build must not
+  silently discard a value it can't show, and it must not act on one it can't turn off - the
+  checkbox defaults to on, so a Release build honouring the setting would log forever with no way to
+  stop it.
 - **The "save Cutout" button** - dumps the exact detection input to `Sly4BHDebugCaptures/` next to the
   DLL: the full 300x300 capture, plus the black patch and the mask region cropped out of it. Fastest
   way to confirm the two fixed regions land where they should on a given crop - the patch must be
@@ -532,6 +543,15 @@ appears totally inert is usually missing a calibration, not broken.
   state (capture target, crop rectangle, calibration results, autosplitter per-split load counts,
   logging options). Persists to/from LiveSplit's layout XML via `GetSettings`/`SetSettings`. The
   "Calibrate" button (`CalibrateBlacklevelButton_Click`) toggles calibration on/off.
+
+  **`.designer.cs` carries `#if DEBUG` blocks** around the three debug controls - their field
+  declarations, their `InitializeComponent` setup, their `Controls.Add`, and the control's own `Size`
+  (474x682 with the debug label, 474x542 without). The fields are declared conditionally rather than
+  just left unpopulated so that touching one from Release code is a compile error here instead of a
+  `NullReferenceException` inside LiveSplit. Preprocessor directives do stop Visual Studio's *visual*
+  form designer opening this file - which costs nothing here, since the file is already maintained by
+  hand and carries hand-written comments inside `InitializeComponent` that the visual designer would
+  discard anyway.
 
   **Calibration measures exactly one thing: the black level.** `CalibrationTick()` (called every frame
   by the component) keeps the running **minimum**, across frames, of the black patch's maximum. The

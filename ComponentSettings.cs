@@ -46,7 +46,11 @@ namespace LiveSplit.UI.Components
         // webcam via DirectShow, for people playing on original hardware.
         public CaptureSource captureSource = CaptureSource.Display;
 
-        public bool SaveDetectionLog = false;
+        // Round-trips through the layout XML in both configurations, so switching between a Debug and a
+        // Release build doesn't quietly discard the user's choice. Only a Debug build acts on it - the
+        // checkbox that controls it is Debug-only, so a Release build has no way to turn logging off
+        // again and therefore never starts it (see Sly4BHLoadRemovalComponent.ReloadLogFile).
+        public bool SaveDetectionLog = true;
 
         public string DetectionLogFolderName = "Sly4BHLoadRemovalLog";
 
@@ -148,7 +152,9 @@ namespace LiveSplit.UI.Components
         {
             InitializeComponent();
 
-            SaveDetectionLog = chkSaveDetectionLog.Checked;
+#if DEBUG
+            chkSaveDetectionLog.Checked = SaveDetectionLog;
+#endif
             UpdateBlacklevelLabel();
             AllGameAutoSplitSettings = new Dictionary<string, XmlElement>();
             dynamicAutoSplitterControls = new List<Control>();
@@ -543,7 +549,9 @@ namespace LiveSplit.UI.Components
 
             settingsNode.AppendChild(ToElement(document, "AutoSplitEnabled", enableAutoSplitterChk.Checked));
             settingsNode.AppendChild(ToElement(document, "AutoSplitDisableOnSkipUntilSplit", chkAutoSplitterDisableOnSkip.Checked));
-            settingsNode.AppendChild(ToElement(document, "SaveDetectionLog", chkSaveDetectionLog.Checked));
+            // The field, not the checkbox - a Release build has no checkbox but must still write back
+            // whatever the layout came in with.
+            settingsNode.AppendChild(ToElement(document, "SaveDetectionLog", SaveDetectionLog));
 
             var splitsNode = document.CreateElement("AutoSplitGames");
 
@@ -659,7 +667,10 @@ namespace LiveSplit.UI.Components
 
                 if (element["SaveDetectionLog"] != null)
                 {
-                    chkSaveDetectionLog.Checked = Convert.ToBoolean(element["SaveDetectionLog"].InnerText);
+                    SaveDetectionLog = Convert.ToBoolean(element["SaveDetectionLog"].InnerText);
+#if DEBUG
+                    chkSaveDetectionLog.Checked = SaveDetectionLog;
+#endif
                 }
 
                 if (element["AutoSplitGames"] != null)
@@ -1184,6 +1195,7 @@ namespace LiveSplit.UI.Components
             AutoSplitterDisableOnSkipUntilSplit = chkAutoSplitterDisableOnSkip.Checked;
         }
 
+#if DEBUG
         private void chkSaveDetectionLog_CheckedChanged(object sender, EventArgs e)
         {
             SaveDetectionLog = chkSaveDetectionLog.Checked;
@@ -1225,6 +1237,7 @@ namespace LiveSplit.UI.Components
                 cropped.Save(path, ImageFormat.Png);
             }
         }
+#endif
 
         private void CalibrateBlacklevelButton_Click(object sender, EventArgs e)
         {
@@ -1257,6 +1270,7 @@ namespace LiveSplit.UI.Components
                 FramePixels frame = new FramePixels(capture);
                 CalibrationSample sample = calibrationRun.Observe(frame);
 
+#if DEBUG
                 debugLabel.Text =
                     "Calibrating - hold a loading screen on screen, then click Stop Calibrating.\r\n" +
                     "Capture: " + capture.Width + "x" + capture.Height + "\r\n" +
@@ -1265,6 +1279,7 @@ namespace LiveSplit.UI.Components
                     (sample.Improved ? "  <- new minimum" : "") + "\r\n" +
                     "Mask region " + MaskDetector.MaskRegion + " (not calibrated - shown to check the crop)\r\n" +
                     sample.Mask;
+#endif
 
                 UpdateBlacklevelLabel();
             }
@@ -1296,9 +1311,13 @@ namespace LiveSplit.UI.Components
             hasCalibration = true;
         }
 
+        // No-op in Release - there is no debug label to mirror the per-frame decision into. The method
+        // itself stays so the component's reporting path doesn't have to be conditional as well.
         public void SetDebugText(string text)
         {
+#if DEBUG
             debugLabel.Text = text;
+#endif
         }
 
         public void UpdateBlacklevelLabel()
