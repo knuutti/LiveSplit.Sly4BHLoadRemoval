@@ -74,7 +74,6 @@
     <Compile Include="LoadDetector.cs" />
     <Compile Include="VideoCaptureDevice.cs" />
     <Compile Include="MaskDetector.cs" />
-    <Compile Include="HighResolutionTimer.cs" />
     <Compile Include="ImageCapture.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

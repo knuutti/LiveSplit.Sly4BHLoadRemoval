@@ -1,12 +1,8 @@
-using System;
-using System.Drawing;
 
 namespace Sly4BHLoadDetector
 {
-    // Everything calibration produces: the capture's black level, and nothing else.
-    //
-    // The mask is no longer calibrated at all - it is looked for in a fixed region and judged by
-    // measured properties, so a run only has to establish where this capture's black bottoms out.
+    // Everything calibration produces: the capture's black level, and nothing else. Nothing about the
+    // mask is calibrated - see MaskDetector.
     public struct Calibration
     {
         public int BlackLevel;
@@ -116,7 +112,6 @@ namespace Sly4BHLoadDetector
                 case DetectionStage.BlackPatch:
                     return "Not a loading screen: " + BlackInfo;
                 case DetectionStage.NoForeground:
-                    return "No mask: " + BlackInfo + "\r\n" + MaskInfo;
                 case DetectionStage.DegenerateBox:
                     return "No mask: " + BlackInfo + "\r\n" + MaskInfo;
                 case DetectionStage.Accepted:
@@ -135,9 +130,8 @@ namespace Sly4BHLoadDetector
         public int CalibratedBlackLevel;
         public bool Improved;
 
-        // What the mask pipeline made of this frame. Nothing in calibration depends on it - it is
-        // shown so the user can see the detector reacting to the load screen while they hold it on
-        // screen, which is the only feedback that the crop and the fixed regions line up.
+        // What the mask pipeline made of this frame. Nothing in calibration depends on it; see
+        // ComponentSettings.CalibrationTick for why it is measured anyway.
         public MaskMetrics Mask;
 
         public string Describe()
@@ -160,9 +154,7 @@ namespace Sly4BHLoadDetector
 
         public int BlackLevel { get { return blackLevel; } }
         public int FrameCount { get { return frameCount; } }
-        public bool HasSamples { get { return blackLevel != -1; } }
 
-        // Feeds one frame into the run and reports what it contributed.
         public CalibrationSample Observe(FramePixels frame)
         {
             CalibrationSample sample = default(CalibrationSample);
@@ -228,6 +220,8 @@ namespace Sly4BHLoadDetector
             }
 
             // 2. Measure whatever is lit inside the fixed mask region.
+            //    Threshold comes from *this* frame's patch, not the calibrated level - see
+            //    MaskDetector.BinarizationThreshold.
             result.BinarizationThreshold = MaskDetector.BinarizationThreshold(result.FrameBlackLevel);
             result.Mask = MaskDetector.Measure(frame, result.BinarizationThreshold);
 
@@ -249,75 +243,54 @@ namespace Sly4BHLoadDetector
                 return result;
             }
 
-            // 3. Does what is lit measure like the loading mask? All four must hold.
+            // 3. Does what is lit measure like the loading mask? All three gates must hold.
             result.RejectedAt = MaskGates.FirstFailure(result.Mask);
             result.IsLoading = result.RejectedAt == DetectionStage.Accepted;
             return result;
         }
     }
 
-    // The gates every measurement must pass for a frame to count as a loading screen.
+    // The three gates a measurement must pass for a frame to count as a loading screen.
     //
-    // All five were read off `DetectionTests.exe testdata --measure`, which prints the range each
-    // quantity takes over each labelled class. Across both capture sets a settled loading screen is
-    // remarkably tight - fill 0.739-0.803, aspect 1.051-1.114, hue 110-112, saturation 146-155, value
-    // 79-83, over 89 frames from two different capture pipelines - so the gates below are placed
-    // around that cluster with the widest margin each measurement allows.
-    //
-    // What has to be rejected is not gameplay (the black patch check disposes of that) but the
+    // Every range below was read off `DetectionTests.exe testdata --measure` over 89 loading frames
+    // from two capture pipelines, where a settled loading screen measures remarkably tight. What has
+    // to be rejected is not gameplay - the black patch check disposes of that - but the
     // gameplay-to-load transition, where the mask animates into place over a fading background. Those
-    // frames form a near-continuum, and only five of them clear fill and aspect at all:
-    //
-    //     f00504   fill 0.707  aspect 1.043  hsv (116.0, 145, 71.5)
-    //     f00954   fill 0.676  aspect 1.043  hsv (116.0, 146, 73.0)
-    //     f00930   fill 0.701  aspect 1.047  hsv ( 63.0, 169, 90.0)
-    //     f00480   fill 0.695  aspect 1.023  hsv ( 96.5, 183, 96.0)
-    //     13_19_08 fill 0.686  aspect 1.023  hsv ( 61.0, 184, 97.0)
-    //
-    // Every one is wrong on colour, and on more than one channel. That redundancy is the point: no
-    // single gate here is threading a narrow gap on its own, which is the failure mode that broke
-    // this detector before (see the surround-band note in CLAUDE.md).
-    //
-    // Mutable so tests\DetectionTests.cs can vary them while searching for a setting; nothing at run
-    // time writes them.
+    // frames form a near-continuum, so the gates are placed around the loading cluster with the widest
+    // margin each measurement allows rather than tight against the nearest reject. See CLAUDE.md for
+    // the full argument.
     internal static class MaskGates
     {
-        // Share of the bounding box that is foreground. A settled mask fills three quarters of its own
-        // box; a mask still fading in sits inside a box blown out by the background it has not
-        // finished covering, so this drops away sharply.
+        // Share of the bounding box that is foreground. Loading measures 0.739-0.803: a settled mask
+        // fills three quarters of its own box, while one still fading in sits inside a box blown out
+        // by the background it has not finished covering.
         //
-        // The floor is well below the loading range on purpose. The transition frames run continuously
-        // from 0.125 up to 0.707, so wherever it is put it lands close to one of them - and putting it
-        // at 0.72 to just clear f00504 would leave genuine loads only 0.019 of headroom. At 0.60 the
-        // loading class has 0.139, the nearest rejected frame has 0.013, and the frames that slip
-        // through are dealt with on colour instead. A false positive costs a few frames of early
-        // pause; a false negative costs the whole load.
-        public static float MinFill = 0.60f;
-        public static float MaxFill = 0.90f;
+        // The floor is far below the loading range on purpose. Transition frames run continuously from
+        // 0.125 up to 0.707, so a floor tight enough to clear the worst of them would leave genuine
+        // loads ~0.019 of headroom; at 0.60 the loading class has 0.139 and the few frames that slip
+        // through are rejected on hue instead. A false positive costs a few frames of early pause, a
+        // false negative costs the whole load.
+        public const float MinFill = 0.60f;
+        public const float MaxFill = 0.90f;
 
-        // Width over height. The mask is measurably wider than tall through its whole pulse.
-        public static float MinAspectRatio = 1.00f;
-        public static float MaxAspectRatio = 1.20f;
+        // Width over height. Loading measures 1.051-1.114 - measurably wider than tall through the
+        // whole pulse.
+        public const float MinAspectRatio = 1.00f;
+        public const float MaxAspectRatio = 1.20f;
 
-        // Median hue over the bounding box, on OpenCV's 0-179 scale - so 110 is the blue the mask is
-        // rendered in. This is the single most stable thing about a loading screen: 110-112 across
-        // every frame of both capture sets, and it rejects all five of the frames listed above.
+        // Median hue over the bounding box, on OpenCV's 0-179 scale - the blue the mask is rendered
+        // in. The single most stable thing about a loading screen: 110-112 across every frame of both
+        // capture sets, and it is what rejects the handful of transition frames that clear fill and
+        // aspect.
         //
-        // There is deliberately no gate on median saturation or median value, though both are
-        // measured and logged. Each was tried and each rejected *nothing*: with either or both opened
-        // right up, every frame in both sets still classifies correctly and the debounced pause lands
-        // on the same frame. They looked like useful redundancy on f00504/f00954, but those two are
-        // the mask part-way through fading in, so hue (116 -> 112) and value (72 -> 80) are moving
-        // together along one trajectory rather than saying independent things.
-        //
-        // Redundant gates are not free. Removing a gate can only ever cause a false positive - a few
-        // frames of early pause - while every gate kept is another way to lose a whole load to a
-        // loading screen that renders slightly off from these 89 frames. A value floor of 76 against
-        // a measured minimum of 79 is exactly that kind of hostage. If a false positive ever does
-        // turn up, the medians are in the detection log already, so a gate can be added back with
-        // evidence instead of on principle.
-        public static int MinHue = 104;
-        public static int MaxHue = 114;
+        // Saturation and value are measured and logged but deliberately not gated: each was tried and
+        // each rejected *nothing*, because on the hardest frames hue and value move together along one
+        // fade-in trajectory rather than saying independent things. Removing a gate can only cause a
+        // false positive, while every gate kept is another way to lose a whole load to a screen that
+        // renders slightly off from these 89 frames. The medians are in the detection log, so a gate
+        // can be added back with evidence if a false positive ever turns up.
+        public const int MinHue = 104;
+        public const int MaxHue = 114;
 
         // Returns the first gate that rejects these metrics, or Accepted. Ordered cheapest-to-explain
         // first: geometry before colour, so a log line names the structural problem when there is one.

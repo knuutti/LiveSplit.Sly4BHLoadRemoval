@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Sly4BHLoadDetector
 {
@@ -58,8 +54,5 @@ namespace Sly4BHLoadDetector
 
         [DllImport("gdi32.dll", SetLastError = true)]
         public static extern IntPtr CreateCompatibleDC(IntPtr hdc);
-
-        [DllImport("user32.dll")]
-        public static extern IntPtr GetForegroundWindow();
     }
 }

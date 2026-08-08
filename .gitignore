@@ -293,3 +293,9 @@ __pycache__/
 
 *venv*
 python/
+# Test and tool binaries - rebuilt on demand by run-tests.cmd and the csc lines
+# in each tool's header comment.
+tests/*.exe
+tests/*.pdb
+tools/*.exe
+tools/*.pdb

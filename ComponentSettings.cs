@@ -33,17 +33,8 @@ namespace LiveSplit.UI.Components
 
         // Calibration state/result, derived by CalibrateBlacklevelButton_Click / CalibrationTick /
         // FinishCalibration from frames captured while the user holds the real load screen on screen.
-        //
-        // One thing comes out of a run: blacklevel, the minimum across all calibration frames of the
-        // maximum intensity in FeatureDetector.BlackRegion. The minimum is the point of it - that
-        // frame is one where the patch was genuinely showing loading-screen backdrop, so the value is
-        // the capture's true black level including its noise floor.
-        //
-        // The mask is no longer calibrated at all. It is looked for in a fixed region and judged on
-        // measured properties (see MaskGates), so nothing about its position or size is stored.
-        //
-        // hasCalibration is what gates detection; without a black level there is nothing to measure
-        // against.
+        // A run produces one number; see CalibrationRun for what it means. hasCalibration is what gates
+        // detection - without a black level there is nothing to measure against.
         public bool isCalibrating = false;
 
         public int blacklevel = -1;
@@ -59,18 +50,16 @@ namespace LiveSplit.UI.Components
 
         public string DetectionLogFolderName = "Sly4BHLoadRemovalLog";
 
-        //Number of frames to wait for a change from load -> running and vice versa.
         // How many consecutive updates the raw detection must agree for before the timer is actually
         // paused or resumed. Counted in *component updates*, not game frames - each one costs a screen
         // grab, a resize and a detection pass, so the wall-clock latency is this number divided by the
         // measured update rate the debug label reports.
         //
-        // 3, down from the 8 inherited from the fork. Measured over testdata\recording\sequence - 122
-        // contiguous frames spanning both ends of a load - the raw verdict changes exactly twice, once
-        // per boundary, with no spurious flips at all, so the extra five frames were pure latency at
-        // both ends of every load. At 3 the pause lands on precisely the frame the load was labelled
-        // as starting. Raise it only if a real capture shows the raw verdict flickering; the detection
-        // log records every transition, so that would be visible rather than a guess.
+        // 3, down from the 8 inherited from the fork: over testdata\recording\sequence the raw verdict
+        // changes exactly twice, once per boundary, with no spurious flips, so the extra five frames
+        // were pure latency at both ends of every load. Raise it only if a real capture shows the raw
+        // verdict flickering - the detection log records every transition, so that would be visible
+        // rather than a guess.
         public int AutoSplitterJitterToleranceFrames = 3;
 
         //If you split manually during "AutoSplitter" mode, I ignore AutoSplitter-splits for 50 frames. (A little less than 2 seconds)
@@ -89,18 +78,9 @@ namespace LiveSplit.UI.Components
 
         private List<string> captureIDs = null;
 
-        private Size captureSize = new Size(800, 800);
-
         // Capture is resized to this canonical size before detection runs on it, so calibration and
         // thresholds stay consistent regardless of the source resolution/crop the user picked.
         private Size resizeSize = new Size(300, 300);
-
-        // Always zero: detection works off the user's whole selected crop (the full game feed) and
-        // subdivides it by fraction internally, so there is never an extra offset to apply. These are
-        // inherited from the TWoC component, where they shifted the capture onto the "LOADING" text band.
-        private float cropOffsetX = 0.0f;
-
-        private float cropOffsetY = 0.0f;
 
         private bool drawingPreview = false;
 
@@ -150,9 +130,8 @@ namespace LiveSplit.UI.Components
         // Refreshes the preview and the status label while a capture device is selected.
         //
         // The preview is pull-based for screens and windows - you press Update Preview and it grabs
-        // one. That does not work for a device: it is a live source, and it takes a moment to come up,
-        // so a single grab at selection time shows "starting..." over a blank preview and then never
-        // changes. Which reads exactly like a hang.
+        // one. That does not work for a device: it is a live source and takes a moment to come up, so a
+        // single grab at selection time never shows anything but "starting...".
         private Timer livePreviewTimer;
 
         // Set whenever the selected device changes, and cleared by the first preview drawn after it
@@ -215,13 +194,9 @@ namespace LiveSplit.UI.Components
             // Cheap - reads a string the capture thread maintains.
             UpdateCaptureStatusLabel();
 
-            // The preview is drawn *once*, when the device starts delivering, and then left alone.
-            //
-            // A device takes a moment to come up, so without this the panel would sit on whatever it
-            // saw at selection time - which is the bug this timer was added for. Redrawing every tick
-            // instead is a full decode plus two resizes per tick, competing with detection for no
-            // benefit: the picture is only there to draw a crop on, and the crop does not move. Use
-            // Update Preview for a fresh one.
+            // Drawn *once*, when the device starts delivering, then left alone. Redrawing every tick
+            // is a full decode plus two resizes competing with detection, for a picture that is only
+            // there to draw a crop on - and the crop does not move. Use Update Preview for a fresh one.
             if (videoPreviewPending && HasVideoFrame())
             {
                 videoPreviewPending = false;
@@ -244,9 +219,7 @@ namespace LiveSplit.UI.Components
         // Returns the user's whole selected crop (i.e. the full game feed), scaled to resizeSize.
         // Detection subdivides this by fraction internally, so it must be the *entire* crop with no
         // extra offset applied - which is exactly what CaptureImageFullPreview(useCrop: true) produces,
-        // and why this reuses that path rather than duplicating the capture math. (The duplicate that
-        // used to live here applied cropOffsetX/Y and captureSize, so detection silently received a
-        // shifted, differently-sized region than the settings preview displayed.)
+        // and why this reuses that path rather than duplicating the capture math.
         public Bitmap CaptureImage()
         {
             ImageCaptureInfo captureInfo = imageCaptureInfo;
@@ -265,7 +238,7 @@ namespace LiveSplit.UI.Components
                 return CaptureFromVideoDevice(ref imageCaptureInfo, useCrop) ?? b;
             }
 
-            //Full screen capture
+            // Negative index means a screen, non-negative a window - see RefreshCaptureWindowList.
             if (processCaptureIndex < 0)
             {
                 Screen selected_screen = Screen.AllScreens[-processCaptureIndex - 1];
@@ -278,12 +251,10 @@ namespace LiveSplit.UI.Components
 
                 if (useCrop)
                 {
-                    //Change size according to selected crop
                     screenRect.Width = (int)(imageCaptureInfo.crop_coordinate_right - imageCaptureInfo.crop_coordinate_left);
                     screenRect.Height = (int)(imageCaptureInfo.crop_coordinate_bottom - imageCaptureInfo.crop_coordinate_top);
                 }
 
-                //Compute crop coordinates and width/ height based on resoution
                 ImageCapture.SizeAdjustedCropAndOffset(screenRect.Width, screenRect.Height, ref imageCaptureInfo);
 
                 imageCaptureInfo.actual_crop_size_x = 2 * imageCaptureInfo.center_of_frame_x;
@@ -291,22 +262,15 @@ namespace LiveSplit.UI.Components
 
                 if (useCrop)
                 {
-                    //Adjust for crop offset
                     imageCaptureInfo.center_of_frame_x += imageCaptureInfo.crop_coordinate_left;
                     imageCaptureInfo.center_of_frame_y += imageCaptureInfo.crop_coordinate_top;
                 }
 
-                //Adjust for selected screen offset
+                // Screen bounds are desktop-absolute, so a secondary monitor needs its origin added.
                 imageCaptureInfo.center_of_frame_x += selected_screen.Bounds.X;
                 imageCaptureInfo.center_of_frame_y += selected_screen.Bounds.Y;
 
-                imageCaptureInfo.actual_offset_x = 0;
-                imageCaptureInfo.actual_offset_y = 0;
-
                 b = ImageCapture.CaptureFromDisplay(ref imageCaptureInfo);
-
-                imageCaptureInfo.actual_offset_x = cropOffsetX;
-                imageCaptureInfo.actual_offset_y = cropOffsetY;
             }
             else
             {
@@ -385,16 +349,11 @@ namespace LiveSplit.UI.Components
                 }
             }
 
-            // Crop and downscale in one pass, straight out of the device's raw sample - no
-            // full-resolution bitmap is ever built and ImageCapture.ResizeImage is not involved.
+            // Crop and downscale in one pass; see VideoCaptureSource.CaptureScaled for why.
             //
-            // At 1080p the two-step version cost 13.8ms to decode plus 26.7ms for the GDI+ resize,
-            // two full passes over 2 megapixels to produce 90k pixels, against 0.16ms for the
-            // detection itself. This walks the source once and converts once per output pixel.
-            //
-            // Note this means the video path and the display path resample differently - see
-            // CLAUDE.md. That is safe because they are separate capture pipelines that are calibrated
-            // and fixtured separately anyway, and it is why the display path was left alone.
+            // Note this means the video path and the display path resample differently. That is safe
+            // because they are separate capture pipelines, calibrated and fixtured separately anyway,
+            // and it is why the display path was left on GDI+.
             return source.CaptureScaled(wanted, info.captureSizeX, info.captureSizeY);
         }
 
@@ -466,7 +425,6 @@ namespace LiveSplit.UI.Components
 
             dynamicAutoSplitterControls.Clear();
 
-            //Add current game to gameSettings
             XmlDocument document = new XmlDocument();
 
             var gameNode = document.CreateElement(autoSplitData.GameName + autoSplitData.Category);
@@ -481,7 +439,6 @@ namespace LiveSplit.UI.Components
 
             CreateAutoSplitControls(liveSplitState);
 
-            //Change controls if we find the chosen game
             foreach (var gameSettings in AllGameAutoSplitSettings)
             {
                 if (gameSettings.Key == gameName + category)
@@ -590,7 +547,6 @@ namespace LiveSplit.UI.Components
 
             var splitsNode = document.CreateElement("AutoSplitGames");
 
-            //Re-Add all other games/categories to the xml file
             foreach (var gameSettings in AllGameAutoSplitSettings)
             {
                 if (gameSettings.Key != autoSplitData.GameName + autoSplitData.Category)
@@ -659,8 +615,7 @@ namespace LiveSplit.UI.Components
                 // it (cols [40,80) x rows [120,160)), and the two read differently on the same
                 // capture - 3 against 0 on the live test set. Reading a stale value back would apply a
                 // wrong threshold silently, so those layouts correctly come back as uncalibrated and
-                // the user recalibrates once. Layouts from the silhouette era carry no key at all and
-                // were already handled this way.
+                // the user recalibrates once.
                 if (element["HasCalibration"] != null)
                 {
                     hasCalibration = Convert.ToBoolean(element["HasCalibration"].InnerText);
@@ -785,8 +740,8 @@ namespace LiveSplit.UI.Components
                     VideoCaptureDeviceInfo device = videoDevices[index];
                     if (device.MonikerName != selectedVideoMoniker)
                     {
-                        // GrabVideoFrame restarts the graph on the next capture; stopping here means
-                        // the previously selected card is released straight away.
+                        // EnsureVideoSource restarts the graph on the next capture; stopping here
+                        // means the previously selected card is released straight away.
                         StopVideoCapture();
                         selectedVideoMoniker = device.MonikerName;
                         selectedVideoName = device.Name;
@@ -826,7 +781,6 @@ namespace LiveSplit.UI.Components
 
             foreach (var split in state.Run)
             {
-                //Setup controls for changing AutoSplit settings
                 var autoSplitPanel = new System.Windows.Forms.Panel();
                 var autoSplitLbl = new System.Windows.Forms.Label();
                 var autoSplitUpDown = new System.Windows.Forms.NumericUpDown();
@@ -848,7 +802,7 @@ namespace LiveSplit.UI.Components
                 autoSplitUpDown.Size = new System.Drawing.Size(35, 20);
                 autoSplitUpDown.TabIndex = 1;
 
-                //Remove all whitespace to name the control, we can then access it in SetSettings.
+                //Sanitize to a legal XML element name so SetSettings can find the control by name.
                 autoSplitUpDown.Name = removeInvalidXMLCharacters(split.Name);
 
                 autoSplitUpDown.ValueChanged += (s, e) => AutoSplitUpDown_ValueChanged(autoSplitUpDown, e, removeInvalidXMLCharacters(split.Name));
@@ -864,7 +818,6 @@ namespace LiveSplit.UI.Components
         private void DrawCaptureRectangleBitmap()
         {
             Bitmap capture_image = (Bitmap)previewImage.Clone();
-            //Draw selection rectangle
             using (Graphics g = Graphics.FromImage(capture_image))
             {
                 Pen drawing_pen = new Pen(Color.Magenta, 8.0f);
@@ -891,7 +844,6 @@ namespace LiveSplit.UI.Components
                 copy.captureSizeX = previewPictureBox.Width;
                 copy.captureSizeY = previewPictureBox.Height;
 
-                //Show something in the preview
                 Bitmap previousPreview = previewImage;
                 previewImage = CaptureImageFullPreview(ref copy);
                 if (previousPreview != null)
@@ -904,13 +856,10 @@ namespace LiveSplit.UI.Components
                 float crop_size_x = copy.actual_crop_size_x;
                 float crop_size_y = copy.actual_crop_size_y;
 
-                //Draw selection rectangle
                 DrawCaptureRectangleBitmap();
 
-                //Compute image crop coordinates according to selection rectangle
-
-                //Get raw image size from imageCaptureInfo.actual_crop_size to compute scaling between raw and rectangle coordinates
-
+                // Selection rectangle is in preview-box pixels; scale it back up to raw capture
+                // pixels, which is what actual_crop_size reports.
                 imageCaptureInfo.crop_coordinate_left = selectionRectanglePreviewBox.Left * (crop_size_x / previewPictureBox.Width);
                 imageCaptureInfo.crop_coordinate_right = selectionRectanglePreviewBox.Right * (crop_size_x / previewPictureBox.Width);
                 imageCaptureInfo.crop_coordinate_top = selectionRectanglePreviewBox.Top * (crop_size_y / previewPictureBox.Height);
@@ -928,9 +877,6 @@ namespace LiveSplit.UI.Components
                 {
                     previousCropped.Dispose();
                 }
-
-                copy.captureSizeX = captureSize.Width;
-                copy.captureSizeY = captureSize.Height;
 
                 // The device reports its resolution only once the graph is up, which is a moment after
                 // it is selected, so the label is refreshed on every preview rather than once on
@@ -958,17 +904,11 @@ namespace LiveSplit.UI.Components
 
             imageCaptureInfo.featureVectorResolutionX = featureVectorResolutionX;
             imageCaptureInfo.featureVectorResolutionY = featureVectorResolutionY;
-            imageCaptureInfo.captureSizeX = captureSize.Width;
-            imageCaptureInfo.captureSizeY = captureSize.Height;
-            imageCaptureInfo.resizeSizeX = resizeSize.Width;
-            imageCaptureInfo.resizeSizeY = resizeSize.Height;
-            imageCaptureInfo.cropOffsetX = cropOffsetX;
-            imageCaptureInfo.cropOffsetY = cropOffsetY;
+            // Every caller sets captureSizeX/Y before use - CaptureImage to resizeSize, DrawPreview to
+            // the preview box - so the value here only has to be non-degenerate.
+            imageCaptureInfo.captureSizeX = resizeSize.Width;
+            imageCaptureInfo.captureSizeY = resizeSize.Height;
             imageCaptureInfo.captureAspectRatio = captureAspectRatioX / captureAspectRatioY;
-        }
-
-        private void previewPictureBox_MouseClick(object sender, MouseEventArgs e)
-        {
         }
 
         private void previewPictureBox_MouseDown(object sender, MouseEventArgs e)
@@ -983,7 +923,6 @@ namespace LiveSplit.UI.Components
             if (drawingPreview == false)
             {
                 drawingPreview = true;
-                //Draw selection rectangle
                 DrawCaptureRectangleBitmap();
                 drawingPreview = false;
             }
@@ -1015,8 +954,6 @@ namespace LiveSplit.UI.Components
 
             captureSource = wanted;
 
-            // Leaving video mode must release the card immediately rather than at some later dispose -
-            // anything else on the machine wanting it is blocked until then.
             if (captureSource != CaptureSource.VideoCapture)
             {
                 StopVideoCapture();
@@ -1054,7 +991,6 @@ namespace LiveSplit.UI.Components
                 numScreens = 0;
                 foreach (var screen in Screen.AllScreens)
                 {
-                    // For each screen, add the screen properties to a list box.
                     processListComboBox.Items.Add("Screen: " + screen.DeviceName + ", " + screen.Bounds.ToString());
                     captureIDs.Add("Screen: " + screen.DeviceName);
                     numScreens++;
@@ -1171,7 +1107,6 @@ namespace LiveSplit.UI.Components
 
         private void SetRectangleFromMouse(MouseEventArgs e)
         {
-            //Clamp values to pictureBox range
             int x = Math.Min(Math.Max(0, e.Location.X), previewPictureBox.Width);
             int y = Math.Min(Math.Max(0, e.Location.Y), previewPictureBox.Height);
 
@@ -1224,7 +1159,6 @@ namespace LiveSplit.UI.Components
 
         private void UpdateIndexToCaptureID()
         {
-            //Find matching window, set selected index to index in dropdown items
             int item_index = 0;
             for (item_index = 0; item_index < processListComboBox.Items.Count; item_index++)
             {
@@ -1313,8 +1247,7 @@ namespace LiveSplit.UI.Components
 
         // Called every frame by the component while isCalibrating is true.
         //
-        // Calibration measures one thing: the running *minimum*, across frames, of the black patch's
-        // maximum. The mask measurement shown alongside it feeds into nothing - it is there so the
+        // The mask measurement shown alongside the black level feeds into nothing - it is there so the
         // user can watch the detector react to the load screen and confirm the fixed regions are
         // landing on the right part of their crop.
         public void CalibrationTick()
@@ -1338,8 +1271,9 @@ namespace LiveSplit.UI.Components
         }
 
         // The calibration detection runs against. Handed out as a copy rather than read field by field
-        // by callers, which avoids CS1690 on this MarshalByRefObject and keeps a frame's checks on one
-        // consistent set of values.
+        // by callers: this is a UserControl and so a MarshalByRefObject, where accessing members of a
+        // struct field is unreliable (CS1690). The copy also keeps every check in a frame on one
+        // consistent set of values even if the user finishes a calibration mid-frame.
         public Calibration GetCalibration()
         {
             Calibration calibration = default(Calibration);

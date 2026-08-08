@@ -13,15 +13,10 @@ namespace LiveSplit.UI.Components
         {
             get { return "Sly 4 / Hackpack Load Remover"; }
         }
-        public GraphicsCache Cache { get; set; }
-
-
         public float PaddingBottom { get { return 0; } }
         public float PaddingTop { get { return 0; } }
         public float PaddingLeft { get { return 0; } }
         public float PaddingRight { get { return 0; } }
-
-        public bool Refresh { get; set; }
 
         public IDictionary<string, Action> ContextMenuControls { get; protected set; }
 
@@ -59,7 +54,6 @@ namespace LiveSplit.UI.Components
 
         private TimerModel timer;
         private bool timerStarted = false;
-        FileStream log_file_stream = null;
         StreamWriter log_file_writer = null;
 
         private string GameName = "";
@@ -144,10 +138,7 @@ namespace LiveSplit.UI.Components
         {
             FramePixels frame = new FramePixels(capture);
 
-            // Fetched through a method rather than read field by field: Sly4BHLoadRemovalSettings is a
-            // UserControl and so a MarshalByRefObject, and accessing members of a struct field on one is
-            // unreliable (CS1690). The copy also keeps every check on one consistent set of values even
-            // if the user finishes a calibration mid-frame.
+            // Fetched through a method rather than read field by field - see GetCalibration.
             DetectionResult result = LoadDetector.Detect(frame, settings.GetCalibration());
 
             ReportDebug(result.Describe());
@@ -225,7 +216,6 @@ namespace LiveSplit.UI.Components
             lastUpdateMs = now;
         }
 
-        // Human-readable form of the above, appended to every debug report.
         private string UpdateRateInfo()
         {
             if (averageUpdateMs <= 0)
@@ -263,7 +253,6 @@ namespace LiveSplit.UI.Components
                 isLoading = rawMatch;
                 timer.CurrentState.IsGameTimePaused = isLoading;
 
-                // A new load starts with no idea which kind it is yet, and nothing counted for it.
                 sawStatsThisLoad = false;
                 countedThisLoad = false;
 
@@ -392,8 +381,7 @@ namespace LiveSplit.UI.Components
             }
 
 
-            log_file_stream = new FileStream(fileName, FileMode.Create);
-            log_file_writer = new StreamWriter(log_file_stream);
+            log_file_writer = new StreamWriter(new FileStream(fileName, FileMode.Create));
             log_file_writer.AutoFlush = true;
             Console.SetOut(log_file_writer);
             Console.SetError(log_file_writer);
@@ -500,10 +488,6 @@ namespace LiveSplit.UI.Components
             this.settings.SetSettings(settings);
         }
 
-        public void RenameComparison(string oldName, string newName)
-        {
-        }
-
         public void Dispose()
         {
             timer.CurrentState.OnStart -= timer_OnStart;
@@ -514,9 +498,6 @@ namespace LiveSplit.UI.Components
             timer.CurrentState.OnPause -= timer_OnPause;
             timer.CurrentState.OnResume -= timer_OnResume;
 
-            // Releases the capture device if one is open. Without this, removing the component from
-            // the layout would leave the card claimed until LiveSplit itself exits, and nothing else
-            // on the machine could open it.
             settings.StopVideoCapture();
 
             if (log_file_writer != null)

@@ -33,7 +33,6 @@ namespace LiveSplit.Sly4BHLoadRemover
         {
             get { return ComponentName; }
         }
-        // TODO: point these at your own hosted repo once you have one - see README.md "Publishing updates".
         public string UpdateURL => "https://raw.githubusercontent.com/knuutti/LiveSplit.Sly4BHLoadRemoval/master/";
         public string XMLURL => UpdateURL + "update.LiveSplit.Sly4BHLoadRemoval.xml";
 

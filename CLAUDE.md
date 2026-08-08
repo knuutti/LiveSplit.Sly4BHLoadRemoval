@@ -17,11 +17,16 @@ detection algorithm is in `README.md` ("How does it work?").
 ## Build
 
 This is an old-style (`ToolsVersion="12.0"`, non-SDK) `.csproj`, built with MSBuild / Visual Studio, not
-the `dotnet` CLI. There is no test suite in this repo.
+the `dotnet` CLI. The offline test suites are built separately by `run-tests.cmd`, not by this project -
+see "Testing detection changes" below.
 
 ```
 msbuild LiveSplit.Sly4BHLoadRemoval.csproj /p:Configuration=Release
 ```
+
+`msbuild` is not on `PATH` from an ordinary shell - use the Developer Command Prompt, or call it by
+full path (`C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe`,
+or locate it with `vswhere -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe`).
 
 `TargetFrameworkVersion` is `v4.8.1` - it must match (or exceed) whatever framework the `LiveSplit.Core.dll`
 you're building against was itself built for (check via its `TargetFrameworkAttribute`), or MSBuild
@@ -51,12 +56,10 @@ in the path does.
 correctly-shaped `Components` folder, but it does **not** install anything. Copy
 `bin\Release\Components\LiveSplit.Sly4BHLoadRemoval.dll` into `..\..\LiveSplit\Components\` to test it.
 
-There is no automated way to verify detection behavior - changes to the capture/detection pipeline need
-to be tested manually by building the component, dropping it into a real LiveSplit `Components` folder,
-and running it against actual gameplay footage (see `README.md` "How to use").
-
-Note this working copy is **not a git repository** - there is no history to consult, and no safety net
-for destructive edits.
+Detection logic is covered offline by `run-tests.cmd` (see the next section). What that cannot reach is
+the **capture path and the LiveSplit wiring** - those still need testing by hand: build the component,
+drop it into a real LiveSplit `Components` folder, and run it against actual gameplay footage (see
+`README.md` "How to use").
 
 ## Testing detection changes
 
@@ -220,7 +223,20 @@ appears totally inert is usually missing a calibration, not broken.
 
   What has to be rejected is not gameplay but the **gameplay-to-load transition**, where the mask
   animates into place over a fading background. Those frames form a near-continuum and only five of
-  them clear fill and aspect at all - hue then rejects all five.
+  them clear fill and aspect at all - hue then rejects all five, and on more than one channel each:
+
+  |  frame   | fill  | aspect | hsv |
+  |---|---|---|---|
+  | `f00504`   | 0.707 | 1.043 | (116.0, 145, 71.5) |
+  | `f00954`   | 0.676 | 1.043 | (116.0, 146, 73.0) |
+  | `f00930`   | 0.701 | 1.047 | ( 63.0, 169, 90.0) |
+  | `f00480`   | 0.695 | 1.023 | ( 96.5, 183, 96.0) |
+  | `13_19_08` | 0.686 | 1.023 | ( 61.0, 184, 97.0) |
+
+  That redundancy is the point: no single gate is threading a narrow gap on its own, which is the
+  failure mode that broke this detector before (see the black-band note below). These numbers are a
+  snapshot of the current fixtures - regenerate them with `--measure` rather than trusting them after
+  `testdata\` changes.
 
   **Saturation and value are deliberately not gated.** Both were tried and both rejected *nothing*:
   with either or both opened right up, every frame in both sets still classifies correctly and the
@@ -295,7 +311,7 @@ appears totally inert is usually missing a calibration, not broken.
 - **`LoadDetector.cs`** (same namespace) - the actual decisions, kept free of any LiveSplit or WinForms
   type so the offline runners can drive them. `LoadDetector.Detect` runs the pipeline above and returns
   a `DetectionResult` carrying every measured number plus a `DetectionStage` saying which gate rejected
-  the frame; `MaskGates` holds the five gates and `FirstFailure` applies them; `CalibrationRun.Observe`
+  the frame; `MaskGates` holds the three gates and `FirstFailure` applies them; `CalibrationRun.Observe`
   is one calibration frame, returning a `CalibrationSample`; `CalibrationRun.TryFinish` commits to a
   `Calibration`. All the debug strings are built by `Describe()` on those result types, so the settings
   label, the detection log and the test output cannot drift apart.
@@ -380,11 +396,13 @@ appears totally inert is usually missing a calibration, not broken.
   offset or size change silently breaks every region at once. It therefore delegates to
   `CaptureImageFullPreview(useCrop: true)`, the
   same path the settings preview uses, rather than duplicating the capture math. It previously *did*
-  duplicate it, and applied `cropOffsetX/Y` (TWoC leftovers, `100`/`-115`, which aimed the capture at
-  that game's "LOADING" text band) plus a different `captureSize`. Because the preview path zeroes those
-  offsets and the detection path didn't, the preview showed a correct image while detection silently
-  received a shifted, differently-sized one - so every region read the wrong pixels while everything
-  *looked* right on screen. `cropOffsetX/Y` are now hard-zero. The "save Cutout" button dumps the exact
+  duplicate it, and applied a pair of `cropOffsetX/Y` fields (TWoC leftovers, `100`/`-115`, which aimed
+  the capture at that game's "LOADING" text band) plus a different `captureSize`. Because the preview
+  path zeroed those offsets and the detection path didn't, the preview showed a correct image while
+  detection silently received a shifted, differently-sized one - so every region read the wrong pixels
+  while everything *looked* right on screen. Those fields are **gone** now rather than merely zeroed, so
+  the two paths cannot diverge again; `actual_offset_x/y` survives in `ImageCaptureInfo` but
+  `SizeAdjustedCropAndOffset` always sets it to 0. The "save Cutout" button dumps the exact
   detection input (the full 300x300 capture, plus each fixed region cropped out of it) to
   `Sly4BHDebugCaptures/` next to the DLL, which is the fastest way to confirm the regions are landing
   where they should on a given user's crop.
@@ -428,11 +446,12 @@ appears totally inert is usually missing a calibration, not broken.
     but it is a *guess* and it matters more here than it looks: the detector gates on median hue in a
     10-unit window, so the wrong matrix would shift the mask's blue out of band. If loads stop being
     detected specifically on a YUV source, check the reported hue before touching the gates.
-  - **First-frame timeout is deliberately long (5s).** Falling through quickly would thrash a real
-    capture card, which can take seconds to lock onto an incoming signal: it would walk the whole
-    format chain, find nothing, and start over on a device that was about to work. The cost is that a
-    device which falsely advertises RGB takes ~10s to reach its native format, once, with the status
-    label showing progress throughout.
+  - **First-frame timeout is deliberately generous (2s** - `FirstFrameTimeoutPolls` 200 at
+    `PollIntervalMs` 10; note the two move together, so changing the poll interval silently changes
+    the timeout**).** Falling through quickly would thrash a real capture card, which can take seconds
+    to lock onto an incoming signal: it would walk the whole format chain, find nothing, and start over
+    on a device that was about to work. The cost is that a device which falsely advertises RGB takes a
+    few seconds to reach its native format, once, with the status label showing progress throughout.
   - **The graph is retried, forever, every 3s.** An analog capture card with nothing plugged in cannot
     describe a video format, so `RenderStream` returns `E_FAIL` - and that is the *normal* state when
     LiveSplit starts before the console is on. Measured on a CY3014 USB analog card with no signal:
@@ -507,9 +526,6 @@ appears totally inert is usually missing a calibration, not broken.
   `tools\ListVideoDevices.cs` drives all of this without LiveSplit - it lists devices, and given an
   index opens one and saves a frame. First thing to run against "my capture card isn't in the
   dropdown" or "the preview is black".
-
-- **`HighResolutionTimer.cs`** - dead code inherited from the fork. It's in the `<Compile>` list but
-  nothing references it; detection is driven entirely by LiveSplit's per-frame `Update(...)` call.
 
 - **`ComponentSettings.cs` / `.designer.cs` / `.resx`** - a WinForms `UserControl` that is *both* the
   settings UI shown in LiveSplit's layout editor *and* the holder of essentially all mutable component

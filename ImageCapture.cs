@@ -6,7 +6,6 @@ using System.Drawing.Imaging;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 
 namespace Sly4BHLoadDetector
 {
@@ -16,10 +15,6 @@ namespace Sly4BHLoadDetector
         public float featureVectorResolutionY;
         public int captureSizeX;
         public int captureSizeY;
-        public int resizeSizeX;
-        public int resizeSizeY;
-        public float cropOffsetX;
-        public float cropOffsetY;
         public float captureAspectRatio;
         public float center_of_frame_x;
         public float center_of_frame_y;
@@ -69,12 +64,6 @@ namespace Sly4BHLoadDetector
             return destImage;
         }
 
-        public static Bitmap CropImage(Bitmap capture)
-        {
-            Rectangle cropRect = new Rectangle(0, 0, (int) (capture.Width / 1.2), capture.Height / 3);
-            return capture.Clone(cropRect, capture.PixelFormat);
-        }
-
         //Should probably refactor this into some kind of struct, whatever...
         public static void SizeAdjustedCropAndOffset(int device_width, int device_height, ref ImageCaptureInfo info)
         {
@@ -88,22 +77,21 @@ namespace Sly4BHLoadDetector
 
             info.actual_crop_size_y = info.captureSizeY * resolution_factor_y;
 
-            //Scale offset depending on resolution
-            info.actual_offset_x = info.cropOffsetX * resolution_factor_x;
+            // No capture path shifts the grab off centre: detection wants the user's whole crop and
+            // subdivides it itself. The offset is still threaded through because PrintWindow's
+            // full-window mode saves and restores it around the blit.
+            info.actual_offset_x = 0;
 
-            info.actual_offset_y = info.cropOffsetY * resolution_factor_y;
+            info.actual_offset_y = 0;
 
-            //Scale offset and sizes depending on actual vs. needed aspect ratio
-
+            // Find the captureAspectRatio-shaped region inside a differently-shaped desktop, and shrink
+            // the crop by the share of the width the letterboxing takes up.
             var image_region = (float)device_height / (1.0f / info.captureAspectRatio);
 
-            //Aspect ratio is larger than original
             var black_bar_width_total = (float)device_width - image_region;
 
-            //Compute space occupied by black border relative to total width
             var adjust_factor = ((float)(device_width - black_bar_width_total) / (float)device_width);
             info.actual_crop_size_x *= adjust_factor;
-            info.actual_offset_x *= adjust_factor;
 
 
 
@@ -112,70 +100,22 @@ namespace Sly4BHLoadDetector
             info.center_of_frame_y = device_height / 2;
         }
 
-        public static Bitmap CaptureFromDisplay(ref ImageCaptureInfo info, bool useResize = false)
+        public static Bitmap CaptureFromDisplay(ref ImageCaptureInfo info)
         {
             Bitmap b = new Bitmap((int)info.actual_crop_size_x, (int)info.actual_crop_size_y);
 
-            //Full screen capture
             using (Graphics g = Graphics.FromImage(b))
             {
                 g.CopyFromScreen((int)(info.center_of_frame_x - info.actual_crop_size_x / 2 + info.actual_offset_x),
                 (int)(info.center_of_frame_y - info.actual_crop_size_y / 2 + info.actual_offset_y), 0, 0, new Size((int)info.actual_crop_size_x, (int)info.actual_crop_size_y), CopyPixelOperation.SourceCopy);
             }
 
-            if (useResize)
-                b = ResizeImage(b, info.resizeSizeX, info.resizeSizeY);
-            else
-                b = ResizeImage(b, info.captureSizeX, info.captureSizeY);
+            b = ResizeImage(b, info.captureSizeX, info.captureSizeY);
 
             return b;
         }
 
-        public static Bitmap CaptureForegroundWindow()
-        {
-            //This function currently uses hardcoded values and is unused, but might be useful
-            Rectangle bounds;
-
-
-            var foregroundWindowsHandle = DLLImportStuff.GetForegroundWindow();
-            DLLImportStuff.GetClientRect(foregroundWindowsHandle, out bounds);
-            //bounds = new Rectangle(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
-
-            if (bounds.Width <= 0)
-                return new Bitmap(1, 1);
-
-            var result = new Bitmap(550, 200);
-
-            using (var g = Graphics.FromImage(result))
-            {
-                g.CopyFromScreen(new Point(bounds.Width / 2, bounds.Height / 2), new Point(bounds.X, bounds.Y), new Size(550, 200));
-            }
-
-            return result;
-        }
-
-        public static SizeF GetCurrentDpiScale()
-        {
-            using (Form form = new Form())
-            using (Graphics g = form.CreateGraphics())
-            {
-                var dpi = new SizeF()
-                {
-                    Width = g.DpiX,
-                    Height = g.DpiY
-                };
-                // Calc the scale.
-                SizeF scale = new SizeF()
-                {
-                    Width = dpi.Width / 96f,
-                    Height = dpi.Height / 96f
-                };
-
-                return scale;
-            }
-        }
-
-        public static Bitmap PrintWindow(IntPtr hwnd, ref ImageCaptureInfo info, bool full = false, bool useCrop = false, float scalingValueFloat = 1.0f, bool useResize = false)
+        public static Bitmap PrintWindow(IntPtr hwnd, ref ImageCaptureInfo info, bool full = false, bool useCrop = false, float scalingValueFloat = 1.0f)
         {
             try
             {
@@ -199,15 +139,10 @@ namespace Sly4BHLoadDetector
 
                 if (useCrop)
                 {
-                    //Change size according to selected crop
                     rc.Width = (int)(info.crop_coordinate_right - info.crop_coordinate_left);
                     rc.Height = (int)(info.crop_coordinate_bottom - info.crop_coordinate_top);
                 }
 
-
-
-
-                //Compute crop coordinates and width/ height based on resoution
                 ImageCapture.SizeAdjustedCropAndOffset(rc.Width, rc.Height, ref info);
 
 
@@ -228,7 +163,6 @@ namespace Sly4BHLoadDetector
 
                 if (useCrop)
                 {
-                    //Adjust for crop offset
                     info.center_of_frame_x += info.crop_coordinate_left;
                     info.center_of_frame_y += info.crop_coordinate_top;
                 }
@@ -252,10 +186,7 @@ namespace Sly4BHLoadDetector
                 DLLImportStuff.DeleteObject(hbmp);
                 DLLImportStuff.ReleaseDC(hwnd, hdcwnd);
                 DLLImportStuff.DeleteDC(hdc);
-                if (useResize)
-                    ret = ResizeImage(ret, info.resizeSizeX, info.resizeSizeY);
-                else
-                    ret = ResizeImage(ret, info.captureSizeX, info.captureSizeY);
+                ret = ResizeImage(ret, info.captureSizeX, info.captureSizeY);
                 return ret;
             }
             catch (System.Runtime.InteropServices.ExternalException)

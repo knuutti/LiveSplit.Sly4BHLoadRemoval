@@ -235,7 +235,6 @@ static class DetectionTests
     // through a one-unit gap is fitted to these frames rather than to the game.
     class Spread
     {
-        public string Name;
         public int Count;
         public List<double> Values = new List<double>();
 
@@ -503,8 +502,7 @@ static class DetectionTests
     // Replays contiguous frames through the same consecutive-agreement debounce the component uses,
     // and reports where the timer would actually pause and resume. The raw per-frame verdict is not
     // what the timer sees; this is, and the gap between the two is time added to or removed from the
-    // run. Requires contiguous frames at the source frame rate - a subsampled folder would overstate
-    // the lag by the sampling stride.
+    // run. Requires contiguous frames at the source frame rate.
     static void Sequence(string dir, Calibration calibration)
     {
         List<Frame> frames = Load(dir);

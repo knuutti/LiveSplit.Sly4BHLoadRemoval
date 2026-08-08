@@ -1,4 +1,3 @@
-using System;
 using System.Drawing;
 
 namespace Sly4BHLoadDetector
@@ -122,9 +121,13 @@ namespace Sly4BHLoadDetector
         // measurement is a fill fraction rather than anything resembling text detection.
         public static readonly Rectangle StatsRegion = Rectangle.FromLTRB(60, 190, 250, 270);
 
-        // Share of StatsRegion that must be lit for a load to count as an area load. Set from the
-        // measured separation between the two kinds of loading frame - see MeasureStatsFill.
-        public static float MinStatsFill = 0.05f;
+        // Share of StatsRegion that must be lit for a load to count as an area load.
+        //
+        // A category, not a tuned threshold. Measured over all 89 loading frames a plain load fills
+        // exactly 0.000 of this region and an area load 0.386-0.412, so an area load could lose 87% of
+        // its icon row and still register, while a plain load would need ~760 stray lit pixels to trip
+        // it.
+        public const float MinStatsFill = 0.05f;
 
         // Share of StatsRegion brighter than the frame's own binarization threshold.
         //
@@ -183,8 +186,6 @@ namespace Sly4BHLoadDetector
         private const int MedianRadius = MedianKernel / 2;
         private const int MedianMajority = (MedianKernel * MedianKernel) / 2 + 1;
 
-        // Binarizes MaskRegion, median-blurs it, and measures the bounding box of what survives.
-        //
         // `blacknessLevel` is the value from BinarizationThreshold; a pixel is foreground when its
         // luma is strictly greater, matching cv.threshold(..., THRESH_BINARY).
         public static MaskMetrics Measure(FramePixels frame, int blacknessLevel)

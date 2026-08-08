@@ -94,10 +94,6 @@ namespace Sly4BHLoadDetector
         int Read([In, MarshalAs(UnmanagedType.LPWStr)] string propertyName,
                  [In, Out, MarshalAs(UnmanagedType.Struct)] ref object value,
                  IntPtr errorLog);
-
-        [PreserveSig]
-        int Write([In, MarshalAs(UnmanagedType.LPWStr)] string propertyName,
-                  [In, MarshalAs(UnmanagedType.Struct)] ref object value);
     }
 
     // Opaque on purpose - it is only ever passed to other DirectShow calls, never invoked.
@@ -401,7 +397,6 @@ namespace Sly4BHLoadDetector
         private Thread worker;
         private volatile bool stopRequested;
         private volatile string status = "starting...";
-        private volatile bool running;
 
         // How the device's samples are laid out. RGB is a straight copy; the YUV layouts have to be
         // converted here because Windows has no stock DirectShow filter that converts them - which is
@@ -450,8 +445,6 @@ namespace Sly4BHLoadDetector
         // Human-readable state for the settings dialog: resolution once running, the reason otherwise.
         public string Status { get { return status; } }
 
-        public bool IsRunning { get { return running; } }
-
         public VideoCaptureSource(string monikerName)
         {
             this.monikerName = monikerName;
@@ -466,14 +459,13 @@ namespace Sly4BHLoadDetector
         public int FrameWidth { get { return hasFrame ? frameWidth : 0; } }
         public int FrameHeight { get { return hasFrame ? frameHeight : 0; } }
 
-        // Decodes `region` of the most recent frame into a new Bitmap the caller owns, or null if no
-        // frame has arrived yet.
+        // Decodes `region` of the most recent frame straight to `targetWidth` x `targetHeight`,
+        // area-averaging on the way down, into a new Bitmap the caller owns. Returns null if no frame
+        // has arrived yet. Pass 0 for either dimension to get the region at its native size.
         //
         // Decoding happens under the lock. The poll thread can therefore be held up briefly, which
         // only means the next frame it stores is a few milliseconds newer - far cheaper than the
         // whole-frame copy this replaced.
-        // Decodes `region` of the most recent frame straight to `targetWidth` x `targetHeight`,
-        // area-averaging on the way down. Pass 0 for either to get the region at its native size.
         //
         // Doing the scale here rather than handing a full-resolution Bitmap to GDI+ is the whole
         // point: at 1080p, decoding the frame and then resizing it to 300x300 cost 13.8ms + 26.7ms
@@ -567,7 +559,8 @@ namespace Sly4BHLoadDetector
         // RGB24 is what the rest of this file is written around. RGB32 is the fallback for devices
         // whose driver will produce one but not the other. Guid.Empty means "no constraint at all" -
         // the last resort for devices that refuse to negotiate when asked for anything specific,
-        // where whatever comes out is checked afterwards and rejected if it is not RGB.
+        // where whatever comes out is checked afterwards and rejected if it is not a layout this file
+        // can decode (see ReadConnectedFormat: RGB24/RGB32, NV12, YUY2, UYVY).
         private static readonly Guid[] PreferredSubtypes =
         {
             DirectShow.MEDIASUBTYPE_RGB24,
@@ -592,15 +585,15 @@ namespace Sly4BHLoadDetector
         private const int RetryDelayMs = 3000;
 
         // Consecutive empty polls before a *running* graph is given up on as never going to deliver in
-        // this format, and the next one is tried. At 25ms a poll this is five seconds.
+        // this format, and the next one is tried. At PollIntervalMs a poll this is two seconds.
         //
-        // Deliberately generous. Falling through early would be actively harmful on a real capture
-        // card, which can take a few seconds to lock onto an incoming signal: bailing at two seconds
-        // would walk the whole format chain, find nothing, and start again - thrashing forever on a
-        // device that was about to work.
+        // Give this room rather than trimming it. A real capture card can take a moment to lock onto
+        // an incoming signal, and falling through too early walks the whole format chain, finds
+        // nothing, and starts again - thrashing on a device that was about to work.
         private const int FirstFrameTimeoutPolls = 200;
 
-        // Once frames have been seen, a shorter gap is enough to report a stall.
+        // Once frames have been seen, a shorter gap is enough to report a stall - 0.8s at the same
+        // poll interval.
         private const int NoFrameWarningPolls = 80;
 
         private void Run()
@@ -778,8 +771,6 @@ namespace Sly4BHLoadDetector
                     return GraphResult.Failed;
                 }
 
-                running = true;
-
                 // A graph that connects but never delivers is not success. A device can accept a
                 // pixel format it does not actually produce - OBS's virtual camera accepts an RGB24
                 // connection, reports Running, and then pushes nothing - so "connected" has to be
@@ -799,8 +790,6 @@ namespace Sly4BHLoadDetector
             }
             finally
             {
-                running = false;
-
                 try { if (mediaFilter != null) mediaFilter.Stop(); }
                 catch (Exception) { }
 

@@ -12,9 +12,8 @@ using Sly4BHLoadDetector;
 // pipeline, the per-frame work here, and the debounce (which costs frames, so it is only as fast as
 // the update rate this measures) - and they are not fixable by the same means.
 //
-//   csc /out:tools\BenchCapture.exe tools\BenchCapture.cs VideoCaptureDevice.cs ImageCapture.cs
-//       DLLImportStuff.cs LoadDetector.cs FeatureDetector.cs MaskDetector.cs
-//       /r:System.Drawing.dll /r:System.Windows.Forms.dll
+//   csc /out:tools\BenchCapture.exe tools\BenchCapture.cs VideoCaptureDevice.cs LoadDetector.cs
+//       FeatureDetector.cs MaskDetector.cs /r:System.Drawing.dll
 //
 //   BenchCapture.exe <deviceIndex> [seconds]
 static class BenchCapture
@@ -58,7 +57,6 @@ static class BenchCapture
             Rectangle crop = new Rectangle(0, 0, width, height);
 
             var grab = new Stopwatch();
-            var resize = new Stopwatch();
             var detect = new Stopwatch();
             var total = Stopwatch.StartNew();
 

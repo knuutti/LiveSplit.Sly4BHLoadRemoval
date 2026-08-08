@@ -76,7 +76,7 @@ static class ListVideoDevices
 
             if (frame == null)
             {
-                Console.WriteLine("  no frame after 5s");
+                Console.WriteLine("  no frame after 25s");
                 return 1;
             }
 

@@ -166,11 +166,5 @@ namespace Sly4BHLoadDetector
         {
             return frame.MaxIntensity(BlackRegion);
         }
-
-        // Whether the reference patch is black enough for this frame to be a loading screen candidate.
-        public static bool IsBackgroundBlack(FramePixels frame, int calibratedBlackLevel)
-        {
-            return GetBlackLevel(frame) <= calibratedBlackLevel + BlackLevelTolerance;
-        }
     }
 }

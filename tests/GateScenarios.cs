@@ -160,14 +160,8 @@ static class GateScenarios
 
         // ---- Blind spot 1: nothing outside the mask region is looked at ----
         //
-        // The previous detector checked a band around the mask box, which is how it rejected the
-        // transition animation's scattered masks. That band is gone: the only pixels outside the mask
-        // region that matter now are the 40x40 reference patch. Anything else on screen is invisible.
-        //
-        // That is a deliberate trade, not an oversight. The band was measured against the loading
-        // screen's own tip text and loot icons, whose vertical extent moves between loads, and
-        // threading a gap between them broke real runs. Colour rejects the transition directly and
-        // does not care what else is on screen.
+        // The only pixels outside the mask region that matter are the 40x40 reference patch; anything
+        // else on screen is invisible to the detector. A deliberate trade - see CLAUDE.md.
         using (var b = Black())
         {
             DrawMask(b, MaskBlue);
@@ -178,15 +172,12 @@ static class GateScenarios
 
         // ---- Blind spot 2: junk inside the mask region is absorbed into the box ----
         //
-        // The box is the extent of all foreground in the region, so nothing lit inside the region can
-        // ever fall outside it. Stray light next to the mask therefore inflates the box rather than
-        // being flagged, and the only thing that notices is the fill dropping and the aspect ratio
-        // drifting - indirect, and only once the junk is far enough out.
+        // The box is the extent of all foreground in the region, so nothing lit inside it can fall
+        // outside it. Stray light next to the mask inflates the box rather than being flagged; only
+        // the fill dropping and the aspect drifting notice, and only once it is far enough out.
         //
-        // Close junk: absorbed, and the frame is still accepted. The box stretches from 43 wide to 46
-        // and the fill drops from 0.835 to about 0.77, both still inside their bands - so nothing
-        // reports it, and on a calibration-free detector nothing accumulates it either. The cost is
-        // limited to the box being slightly wrong on that frame.
+        // Close junk: the box stretches from 43 wide to 46 and the fill drops from 0.835 to about
+        // 0.77, both still inside their bands, so the frame is still accepted.
         using (var b = Black())
         {
             DrawMask(b, MaskBlue);
@@ -207,8 +198,8 @@ static class GateScenarios
         //
         // Hue, saturation and value are medians over every pixel of the bounding box, backdrop
         // included. That is only meaningful because a settled mask fills three quarters of its own
-        // box; when it does not, the median falls to the backdrop's black and the value gate catches
-        // it. Worth knowing that the colour gates and the fill gate are not independent.
+        // box; when it does not, the median falls towards the backdrop's black. Worth knowing that the
+        // hue gate and the fill gate are therefore not independent - here fill is what rejects it.
         using (var b = Black())
         {
             Fill(b, Rectangle.FromLTRB(128, 120, 171, 128), MaskBlue);

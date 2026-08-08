@@ -84,8 +84,6 @@
             // 
             this.processListComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.processListComboBox.FormattingEnabled = true;
-            this.processListComboBox.Items.AddRange(new object[] {
-            "Full Display (Primary)"});
             this.processListComboBox.Location = new System.Drawing.Point(85, 33);
             this.processListComboBox.Name = "processListComboBox";
             this.processListComboBox.Size = new System.Drawing.Size(345, 21);
@@ -145,7 +143,6 @@
             this.previewPictureBox.Size = new System.Drawing.Size(400, 160);
             this.previewPictureBox.TabIndex = 24;
             this.previewPictureBox.TabStop = false;
-            this.previewPictureBox.MouseClick += new System.Windows.Forms.MouseEventHandler(this.previewPictureBox_MouseClick);
             this.previewPictureBox.MouseDown += new System.Windows.Forms.MouseEventHandler(this.previewPictureBox_MouseDown);
             this.previewPictureBox.MouseMove += new System.Windows.Forms.MouseEventHandler(this.previewPictureBox_MouseMove);
             this.previewPictureBox.MouseUp += new System.Windows.Forms.MouseEventHandler(this.previewPictureBox_MouseUp);
