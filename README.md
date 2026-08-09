@@ -7,7 +7,7 @@ reusing lot of the background code and the UI.
 
 # How to use
 
-Video tutorial: https://youtu.be/nU6NR9Gpi7Y
+*Video setup guide can be found [here](https://youtu.be/nU6NR9Gpi7Y)*
 
 1. [Download](https://github.com/knuutti/LiveSplit.Sly4BHLoadRemoval/releases/latest) the component DLL and drop it into the `Components` folder of your LiveSplit install.
 2. Open LiveSplit -> Edit Layout -> Click the plus icon -> Control -> Sly 4 / Hackpack Load Remover.
